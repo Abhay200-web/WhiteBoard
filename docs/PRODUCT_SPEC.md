@@ -4,6 +4,7 @@
 > **Sources:** (1) hands-on scan of the reference app (Milanote web app, free account, 3 passes) via browser automation; (2) the reference app's public help center for paid/team features; (3) our own design for everything the reference app doesn't have (marked **[OUR DESIGN]**).
 > **Product name:** **Whiteboard** — a visual project-management app. Never reuse the reference app's name, logo or wording.
 > **Team:** 1 backend developer + 1 frontend developer — work split in `EXECUTION_PLAN.md`.
+> **Deployment:** **local desktop app for our own office only** — installed on every office PC, one PC is the **Host** (database + files), the rest connect over the office LAN. No cloud hosting, no paid plans or services. See §5 and `docs/adr/0001-local-desktop-host.md`.
 
 ## How to read this document
 | Section | What it answers |
@@ -15,7 +16,7 @@
 | §3C | Teams, plans & billing (from the reference app's public docs + our design) |
 | §4–9 | How features connect, architecture, data model, pipelines, API, repo layout |
 | §10 | Build roadmap (project-management first) |
-| §11–12 | Deploy, security |
+| §11–12 | Install, backups & releases (local), security |
 | §13 | End-to-end acceptance scenario (the "is it complete?" test) |
 | §14 | Open decisions (need the owner's answers) |
 | §15 | References |
@@ -40,16 +41,18 @@ A **visual project-management app** for creative teams: a manager creates a proj
 ### 0.2 Users & roles
 | Role | Who | Can do |
 |---|---|---|
-| **Workspace owner / admin** | Agency owner | Everything: billing, members, all projects, roles |
+| **Workspace owner / admin** | Agency owner | Everything: members, all projects, roles, Host settings & backups |
 | **Manager** | Project lead | Create projects, write briefs, upload files, assign tasks, review, approve / request changes, invite people |
 | **Artist / employee** | Approved team member or freelancer | See only projects they're added to, work on assigned tasks, upload deliverables, submit for review, comment |
-| **Client** (optional) | External customer | View shared project/deliverables, comment, optionally approve |
-| **Viewer / public link** | Anyone with link | Read-only view of a published board |
+| ~~Client~~ | External customer | **Out of scope** (local app — clients can't reach the office LAN). Send them exports (PDF / files) instead |
+| ~~Viewer / public link~~ | Anyone with link | **Out of scope** (no public hosting) |
 
 ### 0.3 Glossary
 | Term | Meaning |
 |---|---|
-| **Workspace** | A company/team account; holds members, projects, billing |
+| **Workspace** | The company; holds members and projects. **One workspace per Host** |
+| **Host** | The one office PC whose Whiteboard app runs the server, database and file store |
+| **Client app** | Whiteboard installed on any other office PC; connects to the Host over the LAN |
 | **Project** | A unit of client work; has a brief, members, tasks, deadline and a root board |
 | **Board** | A free-form canvas page; boards can contain boards (nesting) |
 | **Card / item** | Anything placed on a board (note, image, file, task card, link…) |
@@ -118,7 +121,7 @@ App
 ```
 
 **URL scheme observed (we design our own):** `/{workspaceId}/home`, `/{boardId}/{board-slug}`, `/account/{section}`.
-Our version: `/w/:workspaceId`, `/b/:boardId/:slug`, `/settings/:section`, `/p/:publicToken` (published boards).
+Our version (in-app routes of the desktop app): `/w/:workspaceId`, `/b/:boardId/:slug`, `/settings/:section`. No public `/p/` links (local app). We don't build the reference app's referral/upgrade CTA or plan usage meter.
 
 ---
 
@@ -212,16 +215,15 @@ Settings → Toolbar options: users choose which tools appear in the main rail (
 When a board is first opened, a floating picker (bottom-right) offers an empty board, a short list of featured starter templates and "more templates". The full gallery is a **searchable list of categories, each with a template count**, drilling into templates; "Keep example content" checkbox; Continue / close. **We author our own templates and categories.**
 
 ### 3.6 Unsorted inbox (P1)
-Right-side panel holding items captured from mobile / web clipper / email that haven't been placed on a board yet; drag items from it onto any board. Counter shown in the top bar. Each board has its own Unsorted panel.
+Right-side panel holding items that haven't been placed on a board yet (in the reference app also fed by mobile / web clipper / email — we have none of those); drag items from it onto any board. Counter shown in the top bar. Each board has its own Unsorted panel.
 
 **Moving cards into a sub-board (observed):** dragging a card onto a board card highlights the board card; on drop the card disappears from the current board and appears in the **child board's Unsorted panel** (not on its canvas). The board card's count and thumbnail preview update. Also available: card menu → Move to board. Shortcut exists to send a card to Unsorted.
 
 **Breadcrumbs:** Home › Parent › Child, each crumb with the board's color chip; each board has its own URL `/{boardId}/{slug}`.
 
 ### 3.7 Sharing (P1)
-- **Editors:** invite by email (with send), or toggle an "invite editors with link" URL; notify-me-on-edit toggle.
-- **Read-only published link:** toggle on/off, copy link; options: allow comments/reactions/drawing, show download links on files, welcome message, password protection, embed (HTML iframe code); viewer count.
-- Viewers need no account for read-only links.
+Reference app (observed): editors invited by email or link; read-only published links with password, embed code, viewer count.
+**Ours (local app):** access is by **project membership** only (§3B.1) — anyone in the office who is a member of the project sees its boards. No public/published links and no embeds. To show work to someone outside the office, use **Export** (§3.8).
 
 ### 3.8 Export (P1)
 - Current board layout → PDF (standard / high quality), PNG.
@@ -237,21 +239,23 @@ Results (observed): result count; grouped **by board** (board icon, name, path, 
 
 ### 3.11 Notifications (P1)
 In-app bell for activity on shared boards (edits, comments, mentions, assignments).
-Channels per event (desktop push / email): invited to board, mentioned, assigned a task, comment on a shared board, task reminders, daily change summary, product news.
+Channels per event (**in-app / Windows desktop notification**): added to project, mentioned, assigned a task, comment, task reminders, daily change summary. No email (no paid email service); see §3B.7.
 
 ### 3.12 Account & settings
 | Section | Contents | P |
 |---|---|---|
-| Account | Name, email (change), password (reset), avatar, delete account | P0 |
-| Emails & notifications | Matrix above + enable desktop notifications | P1 |
+| Account | Name, email (login name), password (change; admins reset forgotten passwords), avatar | P0 |
+| Notifications | Matrix above + enable desktop notifications | P1 |
+| Connection | Host address, connection status, app version vs Host version | P0 |
+| Host (owner/admin, on the Host PC only) | Data folder, backup folder & schedule, Backup now, Restore, start with Windows | P0 |
 | Appearance | UI size S/M/L (with shortcut), heading font toggle, light/dark, match system theme | P0 (theme), P1 (size) |
 | Preferences | Prevent overlap, drag 3D effect, grid default, template suggestions, helpers ×4, ink effect, double-click to create note, show undo/redo arrows | P1 |
 | Localization | Language, number/date format, currency, 12h/24h time | P1 |
 | Toolbar options | Choose rail tools | P1 |
 | Privacy | Share viewing history with publishers of published boards; cookie preferences | P1 |
 
-### 3.13 Plans & limits (P2)
-Free plan with a card quota (usage meter in account menu), upgrade CTA, referral program for extra quota. Paid plan = unlimited.
+### 3.13 Plans & limits — not built
+The reference app has a free-plan card quota and paid upgrades. **We don't build plans, quotas or billing** — this is our own internal tool. The only limits are the Host PC's disk space and the max upload size (§14).
 
 ### 3.14 Trash (P0)
 Deleted cards (Delete/Backspace or card menu → Move to trash) go to a trash panel opened from the bottom of the tool rail. Panel groups cards by date ("Today", …) with live card previews, shows "nothing older" at the end, and has an **Empty trash** button. **Restore = drag a card out of the panel onto the canvas** (lands where dropped). Empty state shows an illustration.
@@ -290,7 +294,7 @@ The reference app only has checklist to-dos inside cards. Everything in this sec
 - Create project: name, client (optional), description, **brief** (rich text), **instructions**, start date, **deadline**, budget (optional), cover image, color.
 - Attach **reference files** (any type, multiple) and links.
 - Each project gets a **root board** (canvas) for moodboards, references and notes, created from a project template. **Phase A: projects have no board** — `projects.root_board_id` stays NULL and the UI shows no board tab. **Phase B** creates the root board on demand (first visit) and back-fills existing projects.
-- Members: add people with a role (Manager, Artist, Client). Artists see only their projects.
+- Members: add people with a role (Manager, Artist). Artists see only their projects.
 - Project status: `Planning → Active → On hold → Completed → Archived`.
 - Project overview page: brief, deadline countdown, progress % (done tasks / total), members, recent activity, files.
 
@@ -305,15 +309,15 @@ To do → In progress → Submitted for review → (Changes requested ↺ In pro
 ```
 | Step | Who | What happens |
 |---|---|---|
-| Assign | Manager | Artist notified (in-app + email) |
+| Assign | Manager | Artist notified (in-app + Windows desktop notification) |
 | Start | Artist | Status → In progress |
 | Ask questions | Artist / Manager | Task comments, @mentions |
 | Submit | Artist | Uploads deliverable(s) → new **version** (v1, v2…) + note → status **Submitted for review**; manager notified |
-| Review | Manager (or Client if enabled) | Views version, adds **pin comments** on the image/PDF/video, then **Approve** or **Request changes** (with summary) |
+| Review | Manager | Views version, adds **pin comments** on the image/PDF/video, then **Approve** or **Request changes** (with summary) |
 | Revise | Artist | Sees open pins, fixes, marks pins **resolved**, uploads next version → resubmits |
 | Approve | Manager | Version marked **Approved**, task → Approved/Done; approval recorded (who, when, which version) |
 
-Rules: only Manager/Owner (or Client if "client approval" is on) can approve; artists can't approve their own work; every decision is kept in the task's **history**.
+Rules: only Manager/Owner can approve; artists can't approve their own work; every decision is kept in the task's **history**.
 
 ### 3B.4 Deliverables & versions (P0)
 - Version list per task with uploader, date, note, status (Pending / Changes requested / Approved).
@@ -336,13 +340,13 @@ Rules: only Manager/Owner (or Client if "client approval" is on) can approve; ar
 | **Canvas** | P0 | Task cards on the project board |
 
 ### 3B.7 Notifications for the workflow (P0)
-Assigned · due soon (24 h) · overdue · submitted for review · changes requested · approved · new comment / @mention · added to project. Channels: in-app, email, desktop push (P1); per-user settings (see §3.11).
+Assigned · due soon (24 h) · overdue · submitted for review · changes requested · approved · new comment / @mention · added to project. Channels: **in-app bell** (live over WebSocket) + **Windows desktop notification** (Tauri notification plugin, shown when the app is open or minimized to the tray). Missed events wait in the bell inbox until the user next opens the app. Per-user settings (P1, see §3.11). **No email** — it would need a mail service; can be added later with the company's own SMTP account if wanted.
 
 ### 3B.8 Dashboard & reporting (P1)
 Per project: progress, overdue tasks, tasks per status, review turnaround time. Workspace: active projects, workload per person, upcoming deadlines.
 
 ### 3B.9 Later (P2)
-Dependencies, recurring tasks, time tracking, custom fields, automations, client portal, Slack/Google Calendar integrations.
+Dependencies, recurring tasks, time tracking, custom fields, automations, `.ics` calendar export.
 
 ---
 
@@ -356,12 +360,13 @@ Dependencies, recurring tasks, time tracking, custom fields, automations, client
 
 ### 3C.2 Our design [OUR DESIGN]
 - **Workspace owns all projects** (not individual users) — no lost work when someone leaves.
+- One workspace per Host, created on the Host's first run; the person who sets up the Host is the owner.
 - Multiple admins; roles from §0.2; per-project membership.
-- Invite by email or invite link; pending invites list; resend/revoke.
+- **Invites without email:** admin creates an invite (name, email as login, role, guest end date) → the app shows a one-time **invite code** (e.g. `WB-7K3P-Q9XD`, valid 7 days) → admin gives it to the person → on their PC they install Whiteboard, pick the Host, enter the code and choose a password. Pending invites list; revoke.
+- **Forgotten password:** an admin sets a temporary password from the members page (no reset emails); user must change it at next login.
 - **Offboarding:** remove member → their tasks reassigned (prompt) → access revoked immediately.
 - Ownership transfer of workspace and of projects.
-- Plans (P2): Free (limits on projects/storage), Pro (per-seat), Business (SSO, audit log). Stripe Checkout + Customer Portal; invoices; seat-based billing; downgrade rules (read-only above limits).
-- Storage quotas per plan; upload size limit per plan.
+- **No plans, quotas or billing** (internal tool). One global max upload size (§14).
 
 ---
 
@@ -378,11 +383,9 @@ User ─┬─ Workspace ─── Home board
       │                          │     ├── Reactions, labels
       │                          │     └── Synced copies ⟶ shared source card
       │                          ├── Lines ⟶ (fromCardId?, toCardId?) — follow card positions
-      │                          ├── Shares (editors, invite link, public link + options)
-      │                          └── Activity log ⟶ daily digest email
-      ├── Unsorted inbox ⟵ mobile / web clipper / email-in
-      ├── Settings & preferences
-      └── Plan + usage quota
+      │                          └── Activity log ⟶ notifications, daily summary in the bell
+      ├── Unsorted panel (per board) ⟵ cards moved in from other boards
+      └── Settings & preferences
 ```
 
 Key coupling rules:
@@ -395,62 +398,77 @@ Key coupling rules:
 
 ## 5. Architecture & stack
 
+**Model: one desktop app, one Host, many client apps — all on the office LAN.** Nothing is hosted on the internet and nothing is paid. Every PC installs the same Whiteboard app. On first run the app asks: **"Set up this PC as the Host"** or **"Connect to the office Host"**.
+
 ```
-┌────────────── Clients ──────────────┐
-│ Web (React+Vite)  Desktop (Tauri 2) │  Mobile (Expo, P2)  Web clipper (P2)
-└───────┬─────────────────┬───────────┘
-        │ HTTPS (REST/tRPC)│ WebSocket (Yjs sync)
-┌───────▼───────┐  ┌──────▼─────────┐
-│  API service  │  │ Collab service │  Hocuspocus (Yjs)
-│  Fastify (TS) │  │  + Redis pubsub│
-└───┬───┬───┬───┘  └──────┬─────────┘
-    │   │   │             │ snapshots
-    │   │   └──► Postgres ◄┘ (Drizzle)
-    │   └──────► Cloudflare R2 (files, thumbnails)
-    └──────────► Job queue (BullMQ on Redis): unfurl, thumbnails, export, reminders, emails, search index
+ Office LAN (Wi-Fi / Ethernet)
+ ┌─────────────────────────────┐        ┌───────────────────────────────────────────────┐
+ │ Manager PC                  │        │ HOST PC  (Whiteboard app in Host mode)        │
+ │ Whiteboard app (client) ────┼─HTTP──►│  Tauri shell ── starts & watches ──┐          │
+ └─────────────────────────────┘  +WS   │                                    ▼          │
+ ┌─────────────────────────────┐        │  Whiteboard Server (Node.js sidecar, :47800)  │
+ │ Artist PC                   │        │   ├─ REST API (Fastify)                       │
+ │ Whiteboard app (client) ────┼───────►│   ├─ WebSocket /events  (+ /collab, Phase B)  │
+ └─────────────────────────────┘        │   ├─ Job scheduler (reminders, thumbnails…)   │
+                                        │   ├─ SQLite database ── whiteboard.db         │
+                                        │   ├─ Files folder ───── files/                │
+                                        │   └─ Backup job ──────► external drive / NAS  │
+                                        │  The Host PC's own user also uses the app UI  │
+                                        └───────────────────────────────────────────────┘
 ```
 
-| Layer | Choice |
-|---|---|
-| Language | TypeScript everywhere |
-| Monorepo | pnpm workspaces + Turborepo |
-| Web UI | React 19, Vite, Zustand (UI state), TanStack Query (REST data) |
-| Canvas | DOM cards absolutely positioned inside a CSS-transformed world layer; SVG overlay for lines; virtualization for 1k+ cards |
-| Rich text | TipTap (ProseMirror) + y-prosemirror |
-| Realtime / offline | Yjs CRDT, Hocuspocus server, y-indexeddb client cache |
-| Drawing | perfect-freehand (ink strokes), stored as stroke JSON in the card |
-| Tables | Own grid UI (TanStack Table for model) + `fast-formula-parser` (MIT) for `=` formulas |
-| Emoji picker | `emoji-mart` (MIT) for reactions and document insert |
-| Embeds | oEmbed for YouTube / Vimeo / Spotify / SoundCloud; Google Maps embed URL |
-| API | Fastify + Zod validation (or tRPC) |
-| DB | PostgreSQL 16 + Drizzle ORM; Postgres FTS (P0), Meilisearch (P1 if needed) |
-| Jobs | BullMQ + Redis |
-| Files | Cloudflare R2 (S3 API), presigned uploads, `sharp` thumbnails |
-| Link previews | Server-side Open Graph / oEmbed fetcher (SSRF-safe) |
-| Export | Playwright (headless Chromium) → PDF/PNG; `docx` lib → Word; custom → Markdown/text |
-| Auth | Better Auth (email+password, magic link, Google) |
-| Email | Resend (transactional + digest) |
-| Desktop | Tauri 2 (WebView2 on Windows), updater plugin, deep links |
-| Mobile (P2) | Expo / React Native sharing `packages/core` |
-| Payments (P2) | Stripe Billing |
-| Observability | Sentry, PostHog, OpenTelemetry → Grafana Cloud |
-| Tests | Vitest, Playwright E2E |
+- **Host PC:** any always-on office PC (Windows 10/11, ≥ 8 GB RAM, SSD, enough disk for files). Give it a **fixed LAN IP** (DHCP reservation in the router). It must be switched on while people work; the app minimizes to the tray and can start with Windows.
+- **Client apps** find the Host automatically on the LAN (mDNS), or the user types its address (e.g. `192.168.1.20:47800`).
+- **Same code everywhere:** the UI is a React app rendered inside Tauri; the server is a Node.js program bundled inside the installer and only started in Host mode.
+- **Version check:** each client sends its app version; the Host refuses mismatched clients with "Update Whiteboard to vX.Y" (§11.4).
+
+| Layer | Choice | Cost |
+|---|---|---|
+| Language | TypeScript everywhere (+ a little Rust in the Tauri shell) | Free |
+| Monorepo | pnpm workspaces + Turborepo | Free |
+| Desktop shell | **Tauri 2** (WebView2 on Windows): window, tray, auto-start, OS notifications, file dialogs, Host/Client mode, starts the server sidecar | Free (MIT/Apache) |
+| UI | React 19, Vite, Zustand (UI state), TanStack Query (server data), Tailwind | Free |
+| Server | **Node.js 22 + Fastify** + Zod validation, `@fastify/websocket` — bundled into the installer as a sidecar | Free |
+| Database | **SQLite** (WAL mode) via `better-sqlite3` + **Drizzle ORM**; full-text search with SQLite **FTS5**. Only the Host's server process opens the file — clients never touch it directly | Free, no install |
+| Files | Plain folder on the Host (`<data>/files/<yyyy>/<mm>/<id>`); uploads streamed to the API; `sharp` thumbnails; PDF preview with `pdf.js`; video/audio played natively (MP4/WebM) | Free |
+| Jobs | In-process scheduler (`croner`) + a durable `jobs` table in SQLite (survives restarts) — replaces Redis/BullMQ | Free |
+| Realtime | WebSocket `/events` from the Host (live task updates, notifications) | Free |
+| Notifications | In-app bell + Windows notifications via `@tauri-apps/plugin-notification` | Free |
+| Auth | **Better Auth** (email + password, SQLite adapter, **bearer-token** sessions stored by the app) | Free |
+| Host discovery | mDNS (`bonjour-service` on the Host, browse from the client) + manual address | Free |
+| Canvas (Phase B) | DOM cards in a CSS-transformed world layer; SVG overlay for lines; virtualization for 1k+ cards | Free |
+| Rich text | TipTap (ProseMirror) + y-prosemirror | Free (MIT core) |
+| Realtime boards (Phase B) | Yjs CRDT + Hocuspocus running **inside the Host server** (no Redis needed for one server); y-indexeddb client cache | Free |
+| Drawing | perfect-freehand (ink strokes), stored as stroke JSON in the card | Free |
+| Tables | Own grid UI (TanStack Table for model) + `fast-formula-parser` (MIT) for `=` formulas | Free |
+| Emoji picker | `emoji-mart` (MIT) | Free |
+| Embeds / link previews | oEmbed / Open Graph fetched by the Host — **only works when the office has internet**; otherwise the card shows a plain link | Free |
+| Export | Hidden Tauri window → print to PDF / PNG; `docx` lib → Word; custom → Markdown/text | Free |
+| Logs | Rotating log files in `<data>/logs` (`pino`); "Copy diagnostics" button in Settings | Free |
+| Tests | Vitest (unit + API), Playwright E2E (UI in Chromium against a local server) | Free |
+| CI | GitHub Actions free minutes (lint, typecheck, tests, Windows installer build on release tags) — or build locally with `pnpm tauri build` | Free |
+
+**Explicitly not used:** cloud hosting (Fly.io, Cloudflare, Neon, Supabase, Upstash), Postgres server, Redis, S3/R2/MinIO, email services, Stripe, Sentry/PostHog/Grafana Cloud, Google login, mobile app, web clipper, code-signing certificates.
+
+**Why SQLite, not Postgres:** a desktop Host needs a database with zero installation and a single file that is easy to back up and restore. SQLite handles an office team (≤ 50 users) easily because only one process (the Host server) writes to it. Drizzle keeps the door open to move to Postgres later if the company ever outgrows it.
 
 ---
 
-## 6. Data model (Postgres)
+## 6. Data model (SQLite on the Host)
+
+Column types are written generically. In SQLite via Drizzle: `JSON` = `text({ mode: 'json' })`, `BLOB` = `blob()`, timestamps = integer ms, ids = text (ULID). Search uses FTS5 virtual tables instead of `tsvector`.
 
 ```sql
-users(id, email UNIQUE, name, avatar_url, created_at)
-workspaces(id, name, owner_id, plan, card_quota)
+users(id, email UNIQUE, name, avatar_url, must_change_password, created_at)
+workspaces(id, name, owner_id, created_at)                    -- exactly one row per Host
 memberships(workspace_id, user_id, role,                 -- owner|admin|member|guest
             expires_at NULL,                              -- guests (freelancers) only; access ends automatically
             removed_at NULL, removed_by NULL)             -- offboarding (soft delete, keeps history)
 boards(id, workspace_id, parent_board_id NULL, title, icon, color,
-       background, grid_enabled, ydoc BYTEA, updated_at)
+       background, grid_enabled, ydoc BLOB, updated_at)
 items(id, board_id, parent_item_id NULL,                  -- parent = column
       type, x, y, w, h, z, sort_key, locked,
-      content JSONB, color, created_by, created_at, updated_at, deleted_at)
+      content JSON, color, created_by, created_at, updated_at, deleted_at)
 lines(id, board_id, from_item_id NULL, to_item_id NULL,
       x1,y1,x2,y2, start_cap, end_cap, label, dashed, weight, color)
 todo_items(id, item_id, text, done, due_at, assignee_id, sort_key)
@@ -458,22 +476,25 @@ labels(id, workspace_id, name, color);  item_labels(item_id, label_id)
 reactions(item_id, user_id, emoji)
 comments(id, item_id NULL, board_id NULL, task_id NULL,   -- exactly one of item_id / task_id is set
          author_id, body, parent_id, created_at, edited_at)
-files(id, workspace_id, r2_key, mime, size, width, height, thumb_key)
+files(id, workspace_id, storage_key, original_name, mime, size, sha256,   -- storage_key = path under <data>/files
+      width, height, thumb_key, uploaded_by, created_at)
 link_previews(url_hash PK, url, title, description, image_key, fetched_at)
-shares(id, board_id, kind, token, role, password_hash, allow_comments,
-       allow_downloads, welcome_message, created_by)
-inbox_items(id, user_id, payload JSONB, source, created_at)   -- Unsorted
 activity(id, board_id, actor_id, verb, item_id, at)
-notifications(id, user_id, kind, payload JSONB, read_at, created_at)
-user_settings(user_id PK, prefs JSONB)                        -- appearance, prefs, locale, toolbar, notif matrix
+notifications(id, user_id, kind, payload JSON, read_at, created_at)
+user_settings(user_id PK, prefs JSON)                        -- appearance, prefs, locale, toolbar, notif matrix
+
+-- Host-local tables [OUR DESIGN]
+jobs(id, kind, run_at, payload JSON, attempts, locked_at, done_at, last_error)  -- reminders, thumbnails, unfurl, guest expiry
+backups(id, started_at, finished_at, kind, path, db_bytes, files_copied, ok, error)  -- kind: scheduled|manual|pre-migration
+host_settings(key PK, value JSON)                            -- backup folder & schedule, max upload size, app version
 
 -- Project management layer [OUR DESIGN]
-projects(id, workspace_id, name, client_name, brief JSONB, instructions JSONB,
+projects(id, workspace_id, name, client_name, brief JSON, instructions JSON,
          status, start_date, deadline, budget, color, cover_file_id,
          root_board_id, created_by, created_at, archived_at)
-project_members(project_id, user_id, role)                   -- manager|artist|client
+project_members(project_id, user_id, role)                   -- manager|artist
 task_statuses(id, project_id, name, kind, sort_key)          -- kind: todo|doing|review|changes|approved|done
-tasks(id, project_id, status_id, title, description JSONB, priority,
+tasks(id, project_id, status_id, title, description JSON, priority,
       start_at, due_at, estimate_min, created_by, sort_key,
       board_item_id NULL, created_at, updated_at, completed_at)
 task_assignees(task_id, user_id)
@@ -487,65 +508,80 @@ deliverable_versions(id, deliverable_id, version_no, file_id, note,
 reviews(id, version_id, reviewer_id, decision, summary, created_at)
 pins(id, version_id, page, x, y, t_ms NULL, author_id, resolved_at)
 pin_comments(id, pin_id, author_id, body, created_at)
-task_history(id, task_id, actor_id, event, data JSONB, at)
-invites(id, workspace_id, project_id NULL, email, role, token, expires_at, accepted_at)
+task_history(id, task_id, actor_id, event, data JSON, at)
+invites(id, workspace_id, project_id NULL, name, email, role, guest_expires_at NULL,
+        code_hash, expires_at, created_by, accepted_at, revoked_at)  -- code shown once to the admin, stored hashed
 ```
 
-Roles: workspace level in `memberships.role` (`owner|admin|member|guest`); project level in `project_members.role` (`manager|artist|client`). Staff = `member`, freelancers = `guest`.
+Roles: workspace level in `memberships.role` (`owner|admin|member|guest`); project level in `project_members.role` (`manager|artist`). Staff = `member`, freelancers = `guest`.
 
 Default statuses: every new project is seeded with six `task_statuses` (one per `kind`). Custom statuses are P1 but the table supports them from day one.
 
 **`items.content` shape per type (JSON):** note/heading/document → ProseMirror JSON (Yjs-backed) · table → `{ cols, rows, cells: { "A2": { v, f?, type, fmt?, bg?, align? } } }` · sketch → `{ strokes: [{ points, color, size }] }` · swatch → `{ color, display: "hex|rgb|hsl|off", name }` · link/video/audio/map → `{ url, previewId?, embed? }`.
 
-**Source of truth:** the Yjs doc per board (`boards.ydoc`). A debounced projector writes `items`/`lines`/`todo_items` rows for search, counts, notifications, exports and quotas.
+**Source of truth:** the Yjs doc per board (`boards.ydoc`). A debounced projector writes `items`/`lines`/`todo_items` rows for search, counts, notifications and exports.
+
+**Where it lives on the Host:** `%LOCALAPPDATA%\Whiteboard\host\` by default (changeable in Host settings) →
+`whiteboard.db` (+ `-wal`/`-shm`), `files/`, `thumbs/`, `logs/`. Back up this folder and you have everything (§11.2).
 
 ---
 
 ## 7. Pipelines
 
-1. **Edit → sync:** client mutates Y.Doc → y-indexeddb (offline) → WebSocket → Hocuspocus → Redis fan-out to other editors → debounced snapshot to Postgres → projector updates rows → `activity` row.
-2. **Upload:** client requests presigned URL → PUT to R2 → `files` row → job: thumbnail + dimensions → card updated.
-3. **Link unfurl:** URL pasted → API enqueues fetch (cache by URL hash, timeout, private-IP blocklist) → store preview + image in R2 → card updated.
-4. **Notifications:** activity verbs (mention, assign, comment, invite) → notification rows → in-app bell (WS push) + email per user's channel matrix.
-5. **Reminders:** due date set → delayed BullMQ job → notification + email.
-6. **Daily digest:** cron → group yesterday's activity on shared boards per user → email.
-7. **Export:** job renders board in headless Chromium (PDF/PNG) or walks the tree (docx/md/txt, optional sub-boards) → zip to R2 → signed download link.
-8. **Search index:** projector updates `tsvector` columns on items/boards.
-9. **Quota:** card count per workspace checked on create (free plan).
+1. **Edit → sync (Phase B):** client mutates Y.Doc → y-indexeddb (offline cache) → WebSocket → Hocuspocus inside the Host server → other editors → debounced snapshot to SQLite → projector updates rows → `activity` row.
+2. **Upload:** client streams the file (`POST /files`, multipart) to the Host → server checks size/type, writes to `<data>/files/…` under a temp name, computes sha256, renames → `files` row → job: thumbnail + dimensions → client updated over `/events`.
+3. **Link unfurl:** URL pasted → Host enqueues fetch (cache by URL hash, timeout, private-IP blocklist, skipped when offline) → preview image saved to the files folder → card updated.
+4. **Notifications:** activity verbs (mention, assign, comment, added to project) → `notifications` rows → pushed over `/events` to every open app of that user → in-app bell + Windows desktop notification. Users who are offline see them in the bell next time they open the app.
+5. **Reminders:** due date set → `jobs` row with `run_at` → scheduler fires it → notification.
+6. **Daily summary (P1):** scheduler at 09:00 → group yesterday's activity per user → one summary notification in the bell.
+7. **Export:** client renders the board/project in a hidden window → PDF/PNG, or walks the tree (docx/md/txt, optional sub-boards) → zip → **Save as…** dialog on the user's PC.
+8. **Search index:** projector updates SQLite FTS5 tables for items, boards, projects, tasks.
+9. **Startup (Host):** Tauri starts the server sidecar → server takes an automatic backup if a migration is pending → runs Drizzle migrations → opens port 47800 → announces itself over mDNS → Tauri restarts the server if it crashes.
 10. **Review flow [OUR DESIGN]:** artist uploads → `deliverable_versions` row (state pending) → task status → review → notify managers/watchers → manager creates `reviews` row → decision updates version state + task status → notify artist → `task_history` row.
-11. **Deadline watcher:** cron every 15 min → tasks due in 24 h / overdue → notifications (deduplicated).
-12. **Invites:** create invite → email with token link → accept → membership + project membership → notify inviter.
+11. **Deadline watcher:** scheduler every 15 min → tasks due in 24 h / overdue → notifications (deduplicated). Missed runs (Host was off) are caught up at startup.
+12. **Invites:** admin creates invite → Host returns a one-time code (stored hashed) → admin hands it over → new user's app connects to the Host, enters code + password → membership + project membership → notify inviter.
 13. **Offboarding:** admin removes member → API returns their open tasks → admin picks a new assignee per task (or "unassigned") → in one transaction: tasks reassigned, `project_members` rows deleted, `memberships.removed_at` set, sessions revoked → reassigned people notified → `task_history` rows.
-14. **Guest expiry:** daily cron → guests with `expires_at` < now go through the offboarding steps automatically (open tasks become unassigned, managers notified).
+14. **Guest expiry:** daily scheduler run (and at startup) → guests with `expires_at` < now go through the offboarding steps automatically (open tasks become unassigned, managers notified).
+15. **Backup:** daily at the configured time (default 13:00, while the Host is surely on) and on **Backup now** → SQLite online backup (`VACUUM INTO`) to `<backup>/db/whiteboard-<date>.db` → copy new/changed files to `<backup>/files/` → prune (keep 14 daily + 8 weekly) → `backups` row → warn owners in the bell if the last good backup is > 2 days old or the backup folder is missing.
+16. **Restore:** owner picks a backup in Host settings → server stops accepting requests → current data folder is moved aside (never deleted) → backup copied in → server restarts → clients reconnect.
 
 ---
 
 ## 8. API surface (ours)
 
+All routes are served by the Host at `http://<host-ip>:47800`. Requests carry `Authorization: Bearer <session>` and `X-App-Version`.
+
 ```
-POST   /auth/*                       (Better Auth)
+GET    /host/info                    (public: workspace name, server version — used by discovery & version check)
+POST   /setup                        (first run only: create workspace + owner account)
+POST   /auth/*                       (Better Auth: sign-in, sign-out, change password)
 GET    /me                           PATCH /me/settings
 GET    /workspaces/:id/home
 POST   /boards                       GET/PATCH/DELETE /boards/:id
 GET    /boards/:id/children          POST /boards/:id/duplicate
 POST   /boards/:id/move              (re-parent)
-WS     /collab?board=:id             (Yjs)
-POST   /files/presign                POST /files/:id/complete
+WS     /collab?board=:id             (Yjs, Phase B)
+POST   /files                        (multipart stream upload)
+GET    /files/:id                    (download / preview; supports Range for video)
+GET    /files/:id/thumb
 POST   /unfurl                       { url }
 GET    /search?q=&filter=
 GET    /notifications                POST /notifications/read
-POST   /boards/:id/shares            PATCH/DELETE /shares/:id
-GET    /p/:token                     (public read-only board, optional password)
-POST   /boards/:id/export            { format, includeSubBoards }
-GET    /inbox                        POST /inbox  (clipper/mobile)
+GET    /boards/:id/export-data       { includeSubBoards }  (client builds the PDF/PNG/docx locally)
 GET    /trash                        POST /trash/:itemId/restore
+
+# Host administration (owner/admin) [OUR DESIGN]
+GET/POST           /admin/backups                    (list / Backup now)
+POST               /admin/backups/:id/restore
+GET/PATCH          /admin/host-settings              (backup folder & time, max upload size)
 
 # Workspace members & offboarding [OUR DESIGN]
 GET                /workspaces/:id/members                       (list, with role and expiry)
 PATCH              /workspaces/:id/members/:userId               { role, expiresAt }
 GET                /workspaces/:id/members/:userId/open-tasks    (for the reassignment step)
 POST               /workspaces/:id/members/:userId/remove        { reassign: [{ taskId, toUserId|null }] }
-GET/POST           /invites                POST /invites/:token/accept   DELETE /invites/:id (revoke)
+POST               /workspaces/:id/members/:userId/reset-password  → { temporaryPassword }
+GET/POST           /invites  (POST → { code }, shown once)   POST /invites/accept { code, password }   DELETE /invites/:id (revoke)
 
 # Project management [OUR DESIGN]
 GET/POST           /projects               GET/PATCH/DELETE /projects/:id
@@ -574,20 +610,19 @@ WS                 /events                             (in-app notifications & l
 
 ```
 /apps
-  web/        React + Vite
-  desktop/    Tauri 2 shell (loads web build; native menus, deep links, updater)
-  api/        Fastify REST + jobs
-  collab/     Hocuspocus server
-  mobile/     Expo (P2)
-  clipper/    Browser extension (P2)
+  web/        React + Vite UI (runs inside the desktop app; also in a plain browser for dev & E2E tests)
+  desktop/    Tauri 2 shell: Host/Client mode, starts & watches the server sidecar, tray, auto-start,
+              notifications, mDNS browse, file dialogs, installer config
+  server/     Fastify REST + WebSocket /events + scheduler/jobs + backups (+ Hocuspocus in Phase B)
 /packages
-  core/       domain types, Yjs schema, geometry, card registry
-  canvas/     canvas engine (pan/zoom, selection, drag, lines, overlap push)
+  core/       domain types, Zod schemas (API contract), Yjs schema, geometry, card registry
+  canvas/     canvas engine (pan/zoom, selection, drag, lines, overlap push) — Phase B
   editor/     TipTap config + extensions
   ui/         our design system (tokens, components, icons)
-  db/         Drizzle schema + migrations
+  db/         Drizzle schema (SQLite) + migrations
   config/     eslint, tsconfig, tailwind preset
-/infra        Dockerfiles, fly.toml, GitHub Actions
+/scripts      bundle Node runtime + server for the sidecar, release helpers
+/.github      GitHub Actions (CI, Windows installer build on tags)
 ```
 
 ---
@@ -599,16 +634,16 @@ Project-management first: the workflow in §13 must work end to end by the end o
 **Phase A — MVP: the manager ⇄ artist workflow**
 | # | Brick | Done when |
 |---|---|---|
-| 1 | Monorepo, CI, design tokens, auth, DB | Sign up/login works; CI green |
-| 2 | Workspaces, roles, invites, member list, offboarding, guest expiry | Owner invites a staff member and a freelancer; roles enforced; removing a member reassigns their tasks and revokes access; expired guests lose access automatically |
+| 1 | Monorepo, CI, design tokens, **desktop shell with Host/Client mode**, server sidecar, SQLite + migrations, auth | Host PC sets up the workspace + owner; a second PC finds the Host on the LAN and logs in; CI green |
+| 2 | Workspaces, roles, invite codes, member list, admin password reset, offboarding, guest expiry | Owner invites a staff member and a freelancer; roles enforced; removing a member reassigns their tasks and revokes access; expired guests lose access automatically |
 | 3 | Projects (create, brief, files, members, status) | Manager creates a project with brief + files; artist sees only their projects |
-| 4 | Files pipeline (R2 upload, previews, download) | Upload/preview images, PDFs, video |
+| 4 | Files pipeline (stream upload to Host, thumbnails, previews, download) + **backups & restore** | Upload/preview images, PDFs, video; nightly backup runs; restore tested |
 | 5 | Tasks + list view + My tasks | Create/assign/edit tasks; artist sees My tasks |
 | 6 | Kanban view + statuses | Drag between statuses; status rules enforced |
 | 7 | Deliverables + versions + submit for review | Artist submits v1; manager sees it in Review queue |
 | 8 | Reviews + pin feedback + side-by-side version compare | Approve / Request changes with pins; artist resolves pins, submits v2; manager compares v1/v2 |
 | 9 | Task comments, @mentions, task history, in-app notifications (bell + WebSocket) | Full audit trail per task; in-app notification for every §3B.7 event |
-| 10 | Email notifications + deadline watcher | Every §3B.7 event emails once (per user settings); due-soon and overdue alerts fire |
+| 10 | Windows desktop notifications + deadline watcher + Windows installer | Every §3B.7 event shows a Windows notification once; due-soon and overdue alerts fire; `.msi` installs on a clean office PC |
 
 **Phase B — Visual boards**
 | # | Brick | Done when |
@@ -617,78 +652,87 @@ Project-management first: the workflow in §13 must work end to end by the end o
 | 12 | Note, image, file, link, column, line cards | §3.2 P0 rows |
 | 13 | Task cards on the board | Card ↔ task stay in sync with list/kanban |
 | 14 | Persistence, undo/redo, nesting, breadcrumbs, trash, context menus | §3.1, §3.3, §3.6, §3.14 |
-| 15 | Realtime collaboration (Yjs) | 2+ users live, presence cursors, no conflicts |
+| 15 | Realtime collaboration (Yjs via Hocuspocus inside the Host server) | 2+ users live over the LAN, presence cursors, no conflicts |
 
 **Phase C — v2**
 | # | Brick | Done when |
 |---|---|---|
 | 16 | Calendar view, filters, saved views, search | §3B.6, §3.10 |
 | 17 | Dashboard & reporting | §3B.8 |
-| 18 | Sharing: client access, public links | §3.7, client role |
-| 19 | Desktop app (Tauri) | Installer, auto-update |
-| 20 | Settings (all sections), templates, export | §3.8, §3.12 |
+| 18 | Host hardening: run the server as a Windows service (works with nobody logged in), encrypted LAN traffic (§12), in-app updates served by the Host | Host survives reboot without login; clients update from the Host with one click |
+| 19 | Export (PDF/PNG/Word/Markdown/zip) | §3.8 |
+| 20 | Settings (all sections), templates | §3.12 |
 | 21 | Table, Document, Heading, Color, Comment cards | §3.2 P1 rows |
 
 **Phase D — v3**
 | # | Brick |
 |---|---|
-| 22 | Plans, quotas, Stripe billing (§3C.2) |
-| 23 | Timeline/Gantt, dependencies, recurring tasks, time tracking |
-| 24 | Sketch/Draw, Map, Video, Audio cards |
-| 25 | Integrations (Slack, Google Calendar), mobile app, web clipper |
+| 22 | Timeline/Gantt, dependencies, recurring tasks, time tracking |
+| 23 | Sketch/Draw, Map, Video, Audio cards |
+| 24 | `.ics` calendar export, optional email via the company's own SMTP account |
+
+**Removed (local app, no paid services):** plans/quotas/Stripe billing, client portal & public links, mobile app, web clipper, Slack/Google Calendar integrations.
 
 ---
 
-## 11. Deploy plan
+## 11. Install, backups & releases (local — nothing hosted)
 
-| Component | Host |
-|---|---|
-| Web (static) | Cloudflare Pages |
-| API + jobs | Fly.io (Docker, 2+ machines, autoscale) |
-| Collab (WebSocket) | Fly.io (sticky sessions per board, Redis fan-out) |
-| Postgres | Neon (branching for previews) or Supabase |
-| Redis | Upstash |
-| Files | Cloudflare R2 + CDN custom domain |
-| Email | Resend |
-| DNS / WAF / rate limiting | Cloudflare |
-| Desktop releases | GitHub Releases or R2 + Tauri updater manifest |
+### 11.1 Installing in the office
+1. Pick the **Host PC**: always on during work hours, SSD, enough free disk for all project files (+ the same again for backups on another drive). Reserve a fixed IP for it in the office router.
+2. Install `Whiteboard_x.y.z_x64.msi` → choose **Set up this PC as the Host** → enter company name + owner account → choose the **backup folder** (external drive or NAS — not the same disk). Allow Windows Firewall access on **Private** networks only (port 47800).
+3. On every other PC: install the same `.msi` → **Connect to the office Host** → the Host appears automatically (or type its IP) → sign in with an invite code.
+4. Set the Host app to **Start with Windows** and to minimize to the tray. Disable sleep on the Host PC during work hours.
 
-**Environments:** local (Docker Compose: Postgres, Redis, MinIO, Mailpit) → preview (per PR) → staging → production.
+### 11.2 Backups (the most important part)
+- **Automatic daily backup** by the Host (§7 pipeline 15) of the database and the files folder to the backup folder; keeps 14 daily + 8 weekly copies.
+- **Backup now** button; **automatic backup before every update/migration**.
+- **3-2-1 rule:** besides the automatic backup, once a week copy the backup folder to a second drive that is kept **outside the office** (theft, fire). Free option: rotate two USB drives.
+- **Restore test once a month:** restore the latest backup on a spare PC (install Whiteboard → Host → Restore) and open a project. A backup that has never been restored doesn't count.
+- If the Host PC dies: install Whiteboard on another PC → **Set up as Host → Restore from backup** → give it the old PC's IP (or clients re-pick the Host).
 
-**CI/CD (GitHub Actions):**
-1. PR: install → lint → typecheck → unit tests → build → Playwright E2E against preview → preview deploy (Pages + Neon branch).
-2. Merge to `develop`: Drizzle migrations on staging → deploy staging → smoke tests.
-3. Release PR `develop` → `main`, tagged `v*`: migrations on production → promote to production → Sentry release + sourcemaps → desktop matrix build (win/mac/linux) → code-sign (Windows: Azure Trusted Signing; macOS: Developer ID + notarization) → publish updater manifest.
-4. Health checks; automatic rollback to previous Fly release on failure.
+### 11.3 Environments
+| Environment | What | Who |
+|---|---|---|
+| **Dev** | `pnpm dev` on each developer PC: Vite UI + server with a local SQLite file in `./.data` (no Docker, no services). `pnpm tauri dev` to run inside the desktop shell | Both developers |
+| **Test Host** | A spare PC (or a developer PC) running the latest `develop` build in Host mode, with test data; a second PC as client | Team, owner for demos |
+| **Office (production)** | The real Host PC + all office PCs, running a released version from `main` | Everyone |
 
-**Backups & DR:** Neon PITR (7–30 days), nightly logical dump to R2, R2 versioning on file bucket.
+### 11.4 Releases & updates
+1. PR → `develop`: GitHub Actions runs install → lint → typecheck → unit + API tests → build → Playwright E2E (UI in Chromium against a local server with a temp SQLite file).
+2. Release PR `develop` → `main`, tagged `vX.Y.Z`: GitHub Actions (Windows runner) builds the `.msi` and attaches it to a GitHub Release (private repo). Free tier minutes are enough; it can also be built locally with `pnpm tauri build`.
+3. **Updating the office:** run the new installer on the **Host first** (it backs up, then migrates the database on start), then on every client PC. Phase A–B: copy the installer to a shared folder/USB. Phase C: the Host serves the installer and clients get an **Update** button.
+4. **Version rule:** client and Host must have the same `major.minor`; otherwise the client shows "Update Whiteboard to vX.Y" and stays read-only/blocked. Patch versions are compatible.
+5. **No code signing** (paid). Windows SmartScreen shows "Unknown publisher" on first install → **More info → Run anyway**. Acceptable for an internal app.
 
 ---
 
 ## 12. Security & quality checklist
-- Row-level authorization on every board/item access (membership or share token).
-- SSRF protection in unfurl/export (block private IP ranges, timeouts, size limits).
-- Presigned URLs short-lived; validate MIME & size; virus scan (P1).
-- Rate limiting on auth, unfurl, invites, public links.
-- Passwords on public links hashed (argon2).
-- CSP, secure cookies, CSRF protection.
+- Authorization on every request (project membership + role); freelancers (guests) never see other projects or the members list.
+- The Host listens on the LAN only: Windows Firewall rule for **Private** networks, never port-forwarded to the internet.
+- **LAN traffic:** Phase A–B use plain HTTP inside the office network (accepted risk: someone on the office Wi-Fi could sniff traffic — keep the Wi-Fi password private and guests on a separate guest network). Phase C adds encryption: the Host creates its own certificate on first run and clients pin its fingerprint when they first connect.
+- Passwords hashed (argon2/scrypt via Better Auth); invite codes stored hashed, single-use, expire in 7 days.
+- Rate limiting on sign-in and invite acceptance (stops password guessing from another PC).
+- Session tokens kept by the desktop app (Tauri store), revoked on sign-out, offboarding and password reset.
+- SSRF protection in unfurl (block private IP ranges, timeouts, size limits).
+- Uploads: global max size, allowed types checked by content (not just extension), files stored under random names, never executed.
+- Data folder is readable only by the Windows user running the Host; backups go to a drive kept physically safe.
+- CSP in the desktop app; no remote code loaded; Tauri capabilities limited to what each window needs.
 - Accessibility: keyboard navigation of cards, focus rings, ARIA on toolbar.
-- Performance budgets: first board render < 1.5 s, 60 fps pan/zoom at 1,000 cards.
-- Role checks on every task/review endpoint (artists can't approve; clients only see shared projects).
-- Uploads: max size per plan, allowed types, virus scan before preview (P1).
-- Data protection: per-workspace data isolation, delete-account & export-my-data (GDPR), audit log (P2).
+- Performance budgets: first board render < 1.5 s, 60 fps pan/zoom at 1,000 cards, API p95 < 200 ms on the LAN.
+- Role checks on every task/review endpoint (artists can't approve their own work).
+- Audit trail: `task_history` and `activity` (P0); full admin audit log (P2).
 
 ---
 
 ## 13. End-to-end acceptance scenario (definition of "complete")
 
-The MVP is complete when this runs without errors as an automated Playwright test **and** by hand:
+The MVP is complete when this runs without errors as an automated Playwright test **and** by hand on **real office PCs (one Host + two clients)**:
 
-1. **Owner** signs up, creates workspace "Studio", invites **Manager** and **Artist** by email.
-2. Both accept the invites; Artist sees no projects yet.
+1. **Owner** installs Whiteboard on the Host PC, sets it up as Host with workspace "Studio", creates invite codes for **Manager** and **Artist**.
+2. Manager and Artist install Whiteboard on their own PCs, find the Host on the LAN, accept with their codes; Artist sees no projects yet.
 3. Manager creates project "Logo for Client X": brief, instructions, deadline in 7 days, uploads 3 reference images and a PDF.
 4. Manager adds Artist to the project and creates task "Logo concepts" (priority High, due in 3 days) assigned to Artist.
-5. Artist gets in-app + email notification; opens **My tasks**; sees the brief and files; asks a question in comments with @Manager.
+5. Artist gets an in-app + Windows desktop notification; opens **My tasks**; sees the brief and files; asks a question in comments with @Manager.
 6. Manager replies; Artist moves task to **In progress**.
 7. Artist uploads `concepts-v1.png` → **Submit for review**.
 8. Manager sees it in **Review queue**, drops 2 pin comments, chooses **Request changes** with a summary.
@@ -696,6 +740,8 @@ The MVP is complete when this runs without errors as an automated Playwright tes
 10. Manager compares v1/v2, chooses **Approve**. Task → Done; project progress updates; history shows every step with who/when.
 11. Task due-date reminders and overdue alerts fire correctly (time-shifted test).
 12. Artist removed from workspace → loses access immediately; their open tasks prompt reassignment.
+13. Owner clicks **Backup now**; the backup is restored on a spare PC set up as a new Host, and the "Logo for Client X" project, its files and full history are all there.
+14. The Host PC is restarted; client apps show "Reconnecting…" and recover on their own without losing unsaved comments.
 
 ---
 
@@ -703,14 +749,17 @@ The MVP is complete when this runs without errors as an automated Playwright tes
 | # | Question | Default if unanswered |
 |---|---|---|
 | 1 | Product name & brand | ✅ **Answered: Whiteboard.** Logo, colors and font still to design (Week 0). |
-| 2 | Are artists internal staff, freelancers, or both? | ✅ **Answered: both.** Staff = workspace **members** (see all projects they're added to, can be made Managers). Freelancers = workspace **guests** (only the projects they're invited to, never see other projects, members list or billing; access can have an end date). |
-| 3 | Do clients log in and approve? | Phase C, off by default |
-| 4 | Team size per workspace | Design for up to 50 users |
-| 5 | Max upload size | 500 MB per file |
-| 6 | Hosting region / data residency | EU or US single region |
+| 2 | Are artists internal staff, freelancers, or both? | ✅ **Answered: both.** Staff = workspace **members** (see all projects they're added to, can be made Managers). Freelancers = workspace **guests** (only the projects they're invited to, never see other projects, the members list or Host settings; access can have an end date). |
+| 3 | Do clients log in and approve? | ✅ **Answered: no.** Local app only; clients receive exports |
+| 4 | Team size per workspace | Design for up to 50 users on one Host |
+| 5 | Max upload size | 500 MB per file (Host setting) |
+| 6 | Hosting region / data residency | ✅ **Answered: nothing hosted.** All data stays on the office Host PC and its backup drives |
 | 7 | Languages | English first, i18n-ready |
-| 8 | Paid product or internal tool? | Internal first; billing in Phase D |
-| 9 | Web first, desktop when? | Web first, desktop in Phase C |
+| 8 | Paid product or internal tool? | ✅ **Answered: internal tool, no paid plans or services** |
+| 9 | Web first, desktop when? | ✅ **Answered: desktop only (Tauri), from Phase A.** One PC is the Host, the rest connect over the office LAN |
+| 10 | Which PC is the Host, and where do backups go? | Owner picks an always-on PC; backups to an external drive/NAS + a weekly off-site copy |
+| 11 | Operating systems in the office | Windows 10/11 only (Tauri can build macOS/Linux later if needed) |
+| 12 | Do freelancers ever work from outside the office? | ✅ **Answered: no** — everyone works on the office LAN. If this changes, add a free VPN (Tailscale free plan / WireGuard) |
 
 ---
 
