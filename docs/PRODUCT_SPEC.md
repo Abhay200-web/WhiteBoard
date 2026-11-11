@@ -289,7 +289,7 @@ The reference app only has checklist to-dos inside cards. Everything in this sec
 ### 3B.1 Projects (P0)
 - Create project: name, client (optional), description, **brief** (rich text), **instructions**, start date, **deadline**, budget (optional), cover image, color.
 - Attach **reference files** (any type, multiple) and links.
-- Each project gets a **root board** (canvas) for moodboards, references and notes, created from a project template.
+- Each project gets a **root board** (canvas) for moodboards, references and notes, created from a project template. **Phase A: projects have no board** — `projects.root_board_id` stays NULL and the UI shows no board tab. **Phase B** creates the root board on demand (first visit) and back-fills existing projects.
 - Members: add people with a role (Manager, Artist, Client). Artists see only their projects.
 - Project status: `Planning → Active → On hold → Completed → Archived`.
 - Project overview page: brief, deadline countdown, progress % (done tasks / total), members, recent activity, files.
@@ -318,7 +318,7 @@ Rules: only Manager/Owner (or Client if "client approval" is on) can approve; ar
 ### 3B.4 Deliverables & versions (P0)
 - Version list per task with uploader, date, note, status (Pending / Changes requested / Approved).
 - Preview images, PDFs, video, audio in-app; download originals.
-- **Compare** two versions side by side (P1); slider overlay for images (P2).
+- **Compare** two versions side by side (**P0** — needed for §13 step 10); slider overlay for images (P2).
 
 ### 3B.5 Pin feedback (P0)
 - Click on an image/PDF page (or video timestamp, P1) to drop a numbered pin with a comment thread.
@@ -443,7 +443,9 @@ Key coupling rules:
 ```sql
 users(id, email UNIQUE, name, avatar_url, created_at)
 workspaces(id, name, owner_id, plan, card_quota)
-memberships(workspace_id, user_id, role)                 -- owner|editor|viewer
+memberships(workspace_id, user_id, role,                 -- owner|admin|member|guest
+            expires_at NULL,                              -- guests (freelancers) only; access ends automatically
+            removed_at NULL, removed_by NULL)             -- offboarding (soft delete, keeps history)
 boards(id, workspace_id, parent_board_id NULL, title, icon, color,
        background, grid_enabled, ydoc BYTEA, updated_at)
 items(id, board_id, parent_item_id NULL,                  -- parent = column
@@ -454,7 +456,8 @@ lines(id, board_id, from_item_id NULL, to_item_id NULL,
 todo_items(id, item_id, text, done, due_at, assignee_id, sort_key)
 labels(id, workspace_id, name, color);  item_labels(item_id, label_id)
 reactions(item_id, user_id, emoji)
-comments(id, item_id NULL, board_id, author_id, body, parent_id, created_at)
+comments(id, item_id NULL, board_id NULL, task_id NULL,   -- exactly one of item_id / task_id is set
+         author_id, body, parent_id, created_at, edited_at)
 files(id, workspace_id, r2_key, mime, size, width, height, thumb_key)
 link_previews(url_hash PK, url, title, description, image_key, fetched_at)
 shares(id, board_id, kind, token, role, password_hash, allow_comments,
@@ -476,7 +479,8 @@ tasks(id, project_id, status_id, title, description JSONB, priority,
 task_assignees(task_id, user_id)
 task_watchers(task_id, user_id)
 subtasks(id, task_id, title, done, sort_key)
-task_files(task_id, file_id)                                  -- briefs/reference attachments
+project_files(project_id, file_id, kind, added_by, added_at) -- kind: reference|brief|other
+task_files(task_id, file_id)                                  -- task attachments
 deliverables(id, task_id, title)
 deliverable_versions(id, deliverable_id, version_no, file_id, note,
                      submitted_by, submitted_at, state)       -- pending|changes|approved
@@ -487,7 +491,9 @@ task_history(id, task_id, actor_id, event, data JSONB, at)
 invites(id, workspace_id, project_id NULL, email, role, token, expires_at, accepted_at)
 ```
 
-Note: `memberships.role` becomes `owner|admin|member|guest` (workspace level); project-level roles live in `project_members`.
+Roles: workspace level in `memberships.role` (`owner|admin|member|guest`); project level in `project_members.role` (`manager|artist|client`). Staff = `member`, freelancers = `guest`.
+
+Default statuses: every new project is seeded with six `task_statuses` (one per `kind`). Custom statuses are P1 but the table supports them from day one.
 
 **`items.content` shape per type (JSON):** note/heading/document → ProseMirror JSON (Yjs-backed) · table → `{ cols, rows, cells: { "A2": { v, f?, type, fmt?, bg?, align? } } }` · sketch → `{ strokes: [{ points, color, size }] }` · swatch → `{ color, display: "hex|rgb|hsl|off", name }` · link/video/audio/map → `{ url, previewId?, embed? }`.
 
@@ -509,6 +515,8 @@ Note: `memberships.role` becomes `owner|admin|member|guest` (workspace level); p
 10. **Review flow [OUR DESIGN]:** artist uploads → `deliverable_versions` row (state pending) → task status → review → notify managers/watchers → manager creates `reviews` row → decision updates version state + task status → notify artist → `task_history` row.
 11. **Deadline watcher:** cron every 15 min → tasks due in 24 h / overdue → notifications (deduplicated).
 12. **Invites:** create invite → email with token link → accept → membership + project membership → notify inviter.
+13. **Offboarding:** admin removes member → API returns their open tasks → admin picks a new assignee per task (or "unassigned") → in one transaction: tasks reassigned, `project_members` rows deleted, `memberships.removed_at` set, sessions revoked → reassigned people notified → `task_history` rows.
+14. **Guest expiry:** daily cron → guests with `expires_at` < now go through the offboarding steps automatically (open tasks become unassigned, managers notified).
 
 ---
 
@@ -532,18 +540,32 @@ POST   /boards/:id/export            { format, includeSubBoards }
 GET    /inbox                        POST /inbox  (clipper/mobile)
 GET    /trash                        POST /trash/:itemId/restore
 
+# Workspace members & offboarding [OUR DESIGN]
+GET                /workspaces/:id/members                       (list, with role and expiry)
+PATCH              /workspaces/:id/members/:userId               { role, expiresAt }
+GET                /workspaces/:id/members/:userId/open-tasks    (for the reassignment step)
+POST               /workspaces/:id/members/:userId/remove        { reassign: [{ taskId, toUserId|null }] }
+GET/POST           /invites                POST /invites/:token/accept   DELETE /invites/:id (revoke)
+
 # Project management [OUR DESIGN]
 GET/POST           /projects               GET/PATCH/DELETE /projects/:id
-GET/POST/DELETE    /projects/:id/members
+GET/POST           /projects/:id/members   PATCH/DELETE /projects/:id/members/:userId
+GET/POST           /projects/:id/files     DELETE /projects/:id/files/:fileId
+GET/POST           /projects/:id/statuses  PATCH/DELETE /statuses/:id   (custom statuses P1)
 GET/POST           /projects/:id/tasks     GET/PATCH/DELETE /tasks/:id
+PUT                /tasks/:id/assignees    { userIds }
+GET/POST           /tasks/:id/subtasks     PATCH/DELETE /subtasks/:id
+GET/POST           /tasks/:id/files        DELETE /tasks/:id/files/:fileId
+GET/POST           /tasks/:id/comments     PATCH/DELETE /comments/:id
 GET                /me/tasks               GET /me/review-queue
-POST               /tasks/:id/deliverables
-POST               /deliverables/:id/versions          (submit for review)
+GET/POST           /tasks/:id/deliverables
+GET/POST           /deliverables/:id/versions          (POST = submit for review)
+GET                /versions/compare?a=:id&b=:id       (side-by-side data)
 POST               /versions/:id/reviews               { decision: approve|changes, summary }
 GET/POST           /versions/:id/pins      PATCH /pins/:id (resolve)
-POST               /pins/:id/comments
+GET/POST           /pins/:id/comments
 GET                /tasks/:id/history
-POST               /invites                POST /invites/:token/accept
+WS                 /events                             (in-app notifications & live task updates)
 ```
 
 ---
@@ -578,15 +600,15 @@ Project-management first: the workflow in §13 must work end to end by the end o
 | # | Brick | Done when |
 |---|---|---|
 | 1 | Monorepo, CI, design tokens, auth, DB | Sign up/login works; CI green |
-| 2 | Workspaces, roles, invites | Owner invites Manager & Artist by email; roles enforced |
+| 2 | Workspaces, roles, invites, member list, offboarding, guest expiry | Owner invites a staff member and a freelancer; roles enforced; removing a member reassigns their tasks and revokes access; expired guests lose access automatically |
 | 3 | Projects (create, brief, files, members, status) | Manager creates a project with brief + files; artist sees only their projects |
 | 4 | Files pipeline (R2 upload, previews, download) | Upload/preview images, PDFs, video |
 | 5 | Tasks + list view + My tasks | Create/assign/edit tasks; artist sees My tasks |
 | 6 | Kanban view + statuses | Drag between statuses; status rules enforced |
 | 7 | Deliverables + versions + submit for review | Artist submits v1; manager sees it in Review queue |
-| 8 | Reviews + pin feedback | Approve / Request changes with pins; artist resolves pins, submits v2 |
-| 9 | Comments, @mentions, task history | Full audit trail per task |
-| 10 | Notifications (in-app + email) + deadline watcher | Every §3B.7 event fires once |
+| 8 | Reviews + pin feedback + side-by-side version compare | Approve / Request changes with pins; artist resolves pins, submits v2; manager compares v1/v2 |
+| 9 | Task comments, @mentions, task history, in-app notifications (bell + WebSocket) | Full audit trail per task; in-app notification for every §3B.7 event |
+| 10 | Email notifications + deadline watcher | Every §3B.7 event emails once (per user settings); due-soon and overdue alerts fire |
 
 **Phase B — Visual boards**
 | # | Brick | Done when |
