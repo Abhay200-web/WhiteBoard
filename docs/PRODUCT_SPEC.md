@@ -635,8 +635,8 @@ Project-management first: the workflow in §13 must work end to end by the end o
 
 **CI/CD (GitHub Actions):**
 1. PR: install → lint → typecheck → unit tests → build → Playwright E2E against preview → preview deploy (Pages + Neon branch).
-2. Merge to `main`: Drizzle migrations on staging → deploy staging → smoke tests.
-3. Tag `v*`: promote to production → Sentry release + sourcemaps → desktop matrix build (win/mac/linux) → code-sign (Windows: Azure Trusted Signing; macOS: Developer ID + notarization) → publish updater manifest.
+2. Merge to `develop`: Drizzle migrations on staging → deploy staging → smoke tests.
+3. Release PR `develop` → `main`, tagged `v*`: migrations on production → promote to production → Sentry release + sourcemaps → desktop matrix build (win/mac/linux) → code-sign (Windows: Azure Trusted Signing; macOS: Developer ID + notarization) → publish updater manifest.
 4. Health checks; automatic rollback to previous Fly release on failure.
 
 **Backups & DR:** Neon PITR (7–30 days), nightly logical dump to R2, R2 versioning on file bucket.

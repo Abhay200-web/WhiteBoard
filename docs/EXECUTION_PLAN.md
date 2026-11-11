@@ -36,8 +36,9 @@ Each developer stays in their lane. They review each other's PRs only where the 
 | Topic | Rule |
 |---|---|
 | Repo | One GitHub monorepo `whiteboard` (pnpm + Turborepo). `docs/` holds `PRODUCT_SPEC.md`, `EXECUTION_PLAN.md`, `docs/adr/` (decision records) |
-| Branches | `main` protected · feature branches `feat/<issue#>-short-name` · squash-merge |
-| Pull requests | Small (< 400 lines ideal), CI green, linked issue. Reviewer: the other developer for `contract` PRs; otherwise self-merge allowed after CI + 24 h or a review |
+| Branches | **`main`** = production (released code only) · **`develop`** = integration branch, auto-deploys to staging · feature branches `feat/<issue#>-short-name` (and `fix/…`, `chore/…`) **created from `develop`** · hotfixes `hotfix/…` from `main`. Both `main` and `develop` are protected (no direct pushes) |
+| Merging | Feature → `develop`: squash-merge via PR · `develop` → `main`: release PR at the end of each sprint/phase (merge commit, tagged `vX.Y.Z`) · hotfix → `main`, then merge `main` back into `develop` |
+| Pull requests | Target **`develop`** by default. Small (< 400 lines ideal), CI green, linked issue. Reviewer: the other developer for `contract` PRs; otherwise self-merge allowed after CI + 24 h or a review. Release PRs into `main` are approved by the owner |
 | CODEOWNERS | `apps/api`, `apps/collab`, `packages/db`, `infra` → backend · `apps/web`, `apps/desktop`, `packages/ui`, `packages/canvas`, `packages/editor` → frontend · `packages/core` → both |
 | Commits | Conventional commits (`feat:`, `fix:`, `chore:`…) |
 | Tracking | GitHub Projects board: Backlog → Ready → In progress → In review → Done; labels `backend` / `frontend` / `contract`; estimate S/M/L |
@@ -53,7 +54,7 @@ Each developer stays in their lane. They review each other's PRs only where the 
 
 | Task | Owner |
 |---|---|
-| Create GitHub repo `whiteboard`, invite both developers, branch protection on `main` | Owner |
+| Create GitHub repo `whiteboard` with `main` + `develop` (✅ done), invite both developers, branch protection on `main` and `develop`, set `develop` as the default branch for PRs | Owner |
 | Copy `PRODUCT_SPEC.md` + `EXECUTION_PLAN.md` into `docs/` | Owner |
 | Monorepo scaffold, lint/format/typecheck, Vitest, CI pipeline, CODEOWNERS | Backend |
 | Docker Compose: Postgres, Redis, MinIO, Mailpit; `.env.example` | Backend |
