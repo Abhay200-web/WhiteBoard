@@ -1,0 +1,4 @@
+{
+  "extends": "@whiteboard/config/tsconfig/dom.json",
+  "include": ["src"]
+}

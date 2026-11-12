@@ -1,0 +1,15 @@
+{
+  "name": "@whiteboard/desktop",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Tauri 2 shell: Host/Client mode, server sidecar, tray, auto-start, notifications, installer",
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "devDependencies": {
+    "@whiteboard/config": "workspace:*"
+  }
+}
