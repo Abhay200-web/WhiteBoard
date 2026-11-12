@@ -1,0 +1,26 @@
+{
+  "name": "@whiteboard/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Drizzle schema (SQLite) and migrations",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "db:generate": "drizzle-kit generate"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "9.6.0",
+    "@whiteboard/config": "workspace:*",
+    "drizzle-kit": "0.31.11"
+  },
+  "dependencies": {
+    "@whiteboard/core": "workspace:*",
+    "better-sqlite3": "13.0.3",
+    "drizzle-orm": "0.45.4"
+  }
+}

@@ -1,0 +1,9 @@
+# Both developers are full-stack and own every path (EXECUTION_PLAN.md §1).
+# TODO: add the second developer's GitHub username to every line below.
+*                   @Abhay200-web
+
+# Shared foundations: changes need the other developer's review
+/packages/core/     @Abhay200-web
+/packages/db/       @Abhay200-web
+/packages/ui/       @Abhay200-web
+/.github/           @Abhay200-web

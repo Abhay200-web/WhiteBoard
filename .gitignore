@@ -1,0 +1,32 @@
+# Dependencies & build output
+node_modules/
+dist/
+.turbo/
+target/
+coverage/
+
+# Local Host data (database, files, backups) — never commit
+.data/
+*.db
+*.db-wal
+*.db-shm
+
+# Env & logs
+.env
+.env.*
+!.env.example
+*.log
+
+# Editors & OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# Playwright
+test-results/
+playwright-report/
+
+# Personal daily plan notes
+2026-11-12.md
