@@ -11,6 +11,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 ---
 
 ## Week 0 — Setup
+
 - [x] Monorepo scaffold (pnpm + Turborepo, lint, format, typecheck, Vitest, CI, CODEOWNERS)
 - [x] Server hello-world (Fastify + SQLite + Drizzle + `GET /host/info`)
 - [ ] Sidecar spike (Node + native modules in Tauri installer)
@@ -21,6 +22,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 ## Phase A — Manager ⇄ Artist workflow
 
 ### Part 1 — Foundation: Host, auth, permissions
+
 - [x] 1.1 Contracts (`/setup`, sign-in, roles) in `packages/core` — 2026-11-12
 - [x] 1.2 DB: credentials + sessions tables, migration `0001_auth` — 2026-11-12
 - [x] 1.3 `POST /setup` (once-only, transactional) + setup wizard screen — 2026-11-12
@@ -31,6 +33,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 - [x] 1.8 Settings shell (Account, Connection, admin-only Host sections) + app layout — 2026-11-12
 
 ### Part 2 — Members, invites, connection
+
 - [x] 2.1 mDNS announce (`_whiteboard._tcp`) + Connect-to-Host screen (manual address verified against the Host; discovered list appears via the desktop bridge once the Tauri shell exists) + CORS — 2026-11-12
 - [x] 2.2 Invite codes API (hashed, one-time, 7-day expiry, role rules) + Join screen — 2026-11-12
 - [x] 2.3 Members list API + Members page (invite dialog, pending invites, revoke) — 2026-11-12
@@ -40,6 +43,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 - [x] 2.7 Settings → Account: display name, change password — 2026-11-12
 
 ### Part 3 — Projects, files, backups
+
 - [ ] 3.1 Files pipeline (streamed upload, sha256, content check, thumbnails, Range)
 - [ ] 3.2 Shared file uploader + previews (image, PDF, video)
 - [ ] 3.3 Backups (daily, Backup now, pre-migration, pruning, stale warning) + restore
@@ -49,6 +53,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 - [ ] 3.7 Projects list, create-project flow (TipTap brief), overview page
 
 ### Part 4 — Tasks, kanban, comments, notifications
+
 - [ ] 4.1 Tasks API (statuses, assignees, subtasks, files, priority, due)
 - [ ] 4.2 Task list view + detail drawer
 - [ ] 4.3 Kanban with drag-to-status
@@ -58,6 +63,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 - [ ] 4.7 Live task updates over `/events`
 
 ### Part 5 — Review flow, pins, desktop, release
+
 - [ ] 5.1 Deliverables + versions + submit-for-review
 - [ ] 5.2 Reviews (approve / changes) + review screen + queue page
 - [ ] 5.3 Version compare (endpoint + side-by-side UI)
@@ -72,10 +78,11 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 ---
 
 ## Changelog
-| Date | Feature | Ref | Notes |
-|---|---|---|---|
-| 2026-11-12 | Part 2: invites, members, password reset, offboarding, scheduler + guest expiry, mDNS, Connect + Join screens, account name | — | 40 server + 34 web + 4 E2E tests green (invite -> join from a 2nd browser -> reuse refused -> removal kills session). Removed members' emails stay reserved (no re-invite with same email yet) |
-| 2026-11-12 | Part 1 UI: setup wizard, login, forced password change, app layout, settings shell | — | 20 web tests + 3 Playwright E2E (setup -> sign out -> wrong/right password) green against a real Host. Fixed dev proxy so reloading /setup serves the app |
-| 2026-11-12 | Web app shell | — | 10 web tests green, `vite build` ok. Pages for setup/login/home/settings are placeholders; guards redirect by Host + session state. Playwright browsers not installed yet (`pnpm exec playwright install chromium`) |
-| 2026-11-12 | Part 1 backend: contracts, auth tables, setup, sign-in/out/me/change-password, permission middleware, rate limiting | — | 18 server + 6 core tests green; typecheck + lint green. Auth is custom (scrypt + sha256-hashed bearer tokens) instead of Better Auth to keep our own users table |
-| 2026-11-12 | Repo cloned, scanned, progress log + Phase A plan created | — | Scaffold state: server `/host/info`, core + db packages; web/desktop/ui/editor are stubs |
+
+| Date       | Feature                                                                                                                     | Ref | Notes                                                                                                                                                                                                               |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------- | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-11-12 | Part 2: invites, members, password reset, offboarding, scheduler + guest expiry, mDNS, Connect + Join screens, account name | —   | 40 server + 34 web + 4 E2E tests green (invite -> join from a 2nd browser -> reuse refused -> removal kills session). Removed members' emails stay reserved (no re-invite with same email yet)                      |
+| 2026-11-12 | Part 1 UI: setup wizard, login, forced password change, app layout, settings shell                                          | —   | 20 web tests + 3 Playwright E2E (setup -> sign out -> wrong/right password) green against a real Host. Fixed dev proxy so reloading /setup serves the app                                                           |
+| 2026-11-12 | Web app shell                                                                                                               | —   | 10 web tests green, `vite build` ok. Pages for setup/login/home/settings are placeholders; guards redirect by Host + session state. Playwright browsers not installed yet (`pnpm exec playwright install chromium`) |
+| 2026-11-12 | Part 1 backend: contracts, auth tables, setup, sign-in/out/me/change-password, permission middleware, rate limiting         | —   | 18 server + 6 core tests green; typecheck + lint green. Auth is custom (scrypt + sha256-hashed bearer tokens) instead of Better Auth to keep our own users table                                                    |
+| 2026-11-12 | Repo cloned, scanned, progress log + Phase A plan created                                                                   | —   | Scaffold state: server `/host/info`, core + db packages; web/desktop/ui/editor are stubs                                                                                                                            |
