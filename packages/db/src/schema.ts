@@ -1,6 +1,6 @@
 // SQLite schema (spec §6). Timestamps are integer ms, ids are text (ULID).
 import { WORKSPACE_ROLES } from '@whiteboard/core';
-import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
 export const users = sqliteTable('users', {
   id: text('id').primaryKey(),
@@ -44,4 +44,58 @@ export const memberships = sqliteTable(
 export const hostSettings = sqliteTable('host_settings', {
   key: text('key').primaryKey(),
   value: text('value', { mode: 'json' }).notNull(),
+});
+
+/** Password hashes live apart from `users` so user rows are safe to serialise. */
+export const credentials = sqliteTable('credentials', {
+  userId: text('user_id')
+    .primaryKey()
+    .references(() => users.id),
+  /** `scrypt$<salt>$<hash>` (see server auth/password.ts). */
+  passwordHash: text('password_hash').notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+});
+
+/** Bearer sessions. Only the SHA-256 of the token is stored. */
+export const sessions = sqliteTable(
+  'sessions',
+  {
+    id: text('id').primaryKey(),
+    tokenHash: text('token_hash').notNull().unique(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+    lastSeenAt: integer('last_seen_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [index('sessions_user_idx').on(t.userId)],
+);
+
+/** One-time invite codes. Only the SHA-256 of the code is stored. */
+export const invites = sqliteTable('invites', {
+  id: text('id').primaryKey(),
+  workspaceId: text('workspace_id')
+    .notNull()
+    .references(() => workspaces.id),
+  codeHash: text('code_hash').notNull().unique(),
+  role: text('role', { enum: ['admin', 'member', 'guest'] as const }).notNull(),
+  guestExpiresAt: integer('guest_expires_at', { mode: 'timestamp_ms' }),
+  createdBy: text('created_by')
+    .notNull()
+    .references(() => users.id),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  /** The code stops working at this time. */
+  expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+  usedAt: integer('used_at', { mode: 'timestamp_ms' }),
+  usedBy: text('used_by').references(() => users.id),
+  revokedAt: integer('revoked_at', { mode: 'timestamp_ms' }),
+});
+
+/** Last run of each scheduled job, so missed runs are caught up after Host downtime. */
+export const jobs = sqliteTable('jobs', {
+  name: text('name').primaryKey(),
+  lastRunAt: integer('last_run_at', { mode: 'timestamp_ms' }),
+  lastStatus: text('last_status', { enum: ['ok', 'error'] as const }),
+  lastError: text('last_error'),
 });

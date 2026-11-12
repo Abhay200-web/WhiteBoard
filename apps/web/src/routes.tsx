@@ -1,0 +1,44 @@
+import { Navigate, type RouteObject } from 'react-router';
+
+import { PublicOnly, RequireAdmin, RequireAuth } from './auth/guards';
+import { AppLayout } from './layouts/AppLayout';
+import { SettingsLayout } from './layouts/SettingsLayout';
+import { ChangePasswordPage } from './pages/ChangePasswordPage';
+import { ConnectPage } from './pages/ConnectPage';
+import { JoinPage } from './pages/JoinPage';
+import { LoginPage } from './pages/LoginPage';
+import { MembersPage } from './pages/members/MembersPage';
+import { HomePage, NotFoundPage } from './pages/misc';
+import { AccountSection, ConnectionSection, HostSection } from './pages/settings/sections';
+import { SetupPage } from './pages/SetupPage';
+
+export const routes: RouteObject[] = [
+  { element: <PublicOnly page="setup" />, children: [{ path: '/setup', element: <SetupPage /> }] },
+  { element: <PublicOnly page="login" />, children: [{ path: '/login', element: <LoginPage /> }] },
+  { element: <PublicOnly page="join" />, children: [{ path: '/join', element: <JoinPage /> }] },
+  { path: '/connect', element: <ConnectPage /> },
+  {
+    element: <RequireAuth />,
+    children: [
+      { path: '/change-password', element: <ChangePasswordPage /> },
+      {
+        element: <AppLayout />,
+        children: [
+          { path: '/', element: <HomePage /> },
+          { element: <RequireAdmin />, children: [{ path: '/members', element: <MembersPage /> }] },
+          {
+            path: '/settings',
+            element: <SettingsLayout />,
+            children: [
+              { index: true, element: <Navigate to="account" replace /> },
+              { path: 'account', element: <AccountSection /> },
+              { path: 'connection', element: <ConnectionSection /> },
+              { path: 'host', element: <HostSection /> },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  { path: '*', element: <NotFoundPage /> },
+];
