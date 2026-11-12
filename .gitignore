@@ -30,3 +30,6 @@ playwright-report/
 
 # Personal daily plan notes
 2026-11-12.md
+.e2e-data/
+playwright-report/
+test-results/

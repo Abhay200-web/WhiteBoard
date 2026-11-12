@@ -1,0 +1,31 @@
+@import 'tailwindcss';
+@import '@whiteboard/ui/tokens.css';
+/* Tailwind does not scan workspace packages on its own. */
+@source '../../../packages/ui/src';
+
+@theme {
+  --color-bg: var(--wb-bg);
+  --color-surface: var(--wb-surface);
+  --color-surface-2: var(--wb-surface-2);
+  --color-line: var(--wb-border);
+  --color-text: var(--wb-text);
+  --color-muted: var(--wb-muted);
+  --color-accent: var(--wb-accent);
+  --color-accent-hover: var(--wb-accent-hover);
+  --color-accent-fg: var(--wb-accent-fg);
+  --color-danger: var(--wb-danger);
+  --color-success: var(--wb-success);
+  --font-sans: 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+}
+
+@layer base {
+  html {
+    color-scheme: light dark;
+  }
+  body {
+    margin: 0;
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+  }
+}

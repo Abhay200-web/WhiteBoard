@@ -1,0 +1,32 @@
+/* Whiteboard design tokens. Light by default, dark via the OS setting. */
+:root {
+  --wb-bg: #f7f7f5;
+  --wb-surface: #ffffff;
+  --wb-surface-2: #f0efeb;
+  --wb-border: #e2e0da;
+  --wb-text: #1c1b19;
+  --wb-muted: #6b6a65;
+  --wb-accent: #4f46e5;
+  --wb-accent-hover: #4338ca;
+  --wb-accent-fg: #ffffff;
+  --wb-danger: #c62828;
+  --wb-success: #2e7d32;
+  --wb-ring: #4f46e5;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --wb-bg: #121211;
+    --wb-surface: #1b1b19;
+    --wb-surface-2: #242421;
+    --wb-border: #33332f;
+    --wb-text: #ecebe6;
+    --wb-muted: #9a9890;
+    --wb-accent: #7c75ff;
+    --wb-accent-hover: #9690ff;
+    --wb-accent-fg: #11101f;
+    --wb-danger: #ef6b6b;
+    --wb-success: #6fcf74;
+    --wb-ring: #7c75ff;
+  }
+}
