@@ -4,7 +4,7 @@
 > Plan details: [`docs/PHASE_A_PLAN.md`](docs/PHASE_A_PLAN.md) · Spec: [`docs/PRODUCT_SPEC.md`](docs/PRODUCT_SPEC.md) · Schedule: [`docs/EXECUTION_PLAN.md`](docs/EXECUTION_PLAN.md)
 
 **Current phase:** Phase A (MVP) — Part 2 complete except task reassignment (Part 4) — Part 3 next
-**Last updated:** 2026-11-12 (Part 1 done)
+**Last updated:** 2026-11-12 (Parts 1-2 merged; Part 3 not started)
 
 Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
@@ -12,7 +12,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ## Resume here
 
-**State (2026-11-12):** Phase A Parts 1 and 2 are done and pushed on branch `feat/phase-a-auth-members` (PR #5 into `develop`). Not yet merged at the time of writing — check the PR before starting. **Next: Part 3** (files pipeline, backups, projects). Create the Part 3 branch from this branch (or from `develop` once PR #5 is merged), e.g. `feat/phase-a-projects-files`.
+**State (2026-11-12):** Phase A Parts 1 and 2 are done and **merged into `develop`** (PR #6; the old branch `feat/phase-a-auth-members` is obsolete and can be deleted). Work for **Part 3** (files pipeline, backups, projects) goes on branch `feat/phase-a-projects-files`, created from `develop`; **Part 3 has not been started**. Nothing else is pending.
 
 **Suggested Part 3 order:** 3.1 files pipeline → 3.3 backups/restore → 3.4 Host settings → 3.2 uploader/previews → 3.5 projects API → 3.6 project files → 3.7 projects UI.
 
