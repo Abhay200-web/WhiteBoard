@@ -10,9 +10,17 @@
   "scripts": {
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "db:generate": "drizzle-kit generate"
   },
   "devDependencies": {
-    "@whiteboard/config": "workspace:*"
+    "@types/better-sqlite3": "9.6.0",
+    "@whiteboard/config": "workspace:*",
+    "drizzle-kit": "0.31.11"
+  },
+  "dependencies": {
+    "@whiteboard/core": "workspace:*",
+    "better-sqlite3": "13.0.3",
+    "drizzle-orm": "0.45.4"
   }
 }

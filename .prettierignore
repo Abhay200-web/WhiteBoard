@@ -5,3 +5,4 @@ target/
 coverage/
 .data/
 docs/
+packages/db/migrations/

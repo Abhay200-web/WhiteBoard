@@ -1,15 +1,23 @@
 {
   "name": "@whiteboard/server",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "Host server: Fastify REST + WebSocket /events + scheduler/jobs + backups",
   "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
   },
   "devDependencies": {
-    "@whiteboard/config": "workspace:*"
+    "@whiteboard/config": "workspace:*",
+    "tsx": "4.23.15"
+  },
+  "dependencies": {
+    "@whiteboard/core": "workspace:*",
+    "@whiteboard/db": "workspace:*",
+    "fastify": "5.12.8"
   }
 }
