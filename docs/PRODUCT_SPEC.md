@@ -3,7 +3,7 @@
 > **Status:** v2 draft · **Date:** 2026-11-11
 > **Sources:** (1) hands-on scan of the reference app (Milanote web app, free account, 3 passes) via browser automation; (2) the reference app's public help center for paid/team features; (3) our own design for everything the reference app doesn't have (marked **[OUR DESIGN]**).
 > **Product name:** **Whiteboard** — a visual project-management app. Never reuse the reference app's name, logo or wording.
-> **Team:** 1 backend developer + 1 frontend developer — work split in `EXECUTION_PLAN.md`.
+> **Team:** 2 full-stack developers (Dev A, Dev B), split by feature — work split in `EXECUTION_PLAN.md`.
 > **Deployment:** **local desktop app for our own office only** — installed on every office PC, one PC is the **Host** (database + files), the rest connect over the office LAN. No cloud hosting, no paid plans or services. See §5 and `docs/adr/0001-local-desktop-host.md`.
 
 ## How to read this document

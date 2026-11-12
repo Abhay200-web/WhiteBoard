@@ -1,0 +1,15 @@
+{
+  "name": "@whiteboard/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "React + Vite UI (runs inside the desktop app; also in a plain browser for dev and E2E tests)",
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "devDependencies": {
+    "@whiteboard/config": "workspace:*"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "@whiteboard/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Host server: Fastify REST + WebSocket /events + scheduler/jobs + backups",
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "devDependencies": {
+    "@whiteboard/config": "workspace:*"
+  }
+}
