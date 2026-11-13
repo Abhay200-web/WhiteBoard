@@ -8,7 +8,10 @@ export function HomePage() {
     <div>
       <h1 className="text-xl font-semibold">Home</h1>
       <p className="mt-2 text-sm text-muted">
-        Welcome, {user?.name}. Your projects will appear here.
+        Welcome, {user?.name}.{' '}
+        <Link to="/projects" className="text-accent underline">
+          Go to your projects
+        </Link>
       </p>
     </div>
   );

@@ -100,3 +100,28 @@ export async function setupOwner(host: TestHost): Promise<{ token: string; works
 }
 
 export const bearer = (token: string) => ({ authorization: `Bearer ${token}` });
+
+/** Uploads a file through `POST /files` and returns its id. */
+export async function uploadTestFile(
+  host: TestHost,
+  token: string,
+  name: string,
+  content: Buffer,
+): Promise<string> {
+  const boundary = '----wbtest';
+  const payload = Buffer.concat([
+    Buffer.from(
+      `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${name}"\r\n\r\n`,
+    ),
+    content,
+    Buffer.from(`\r\n--${boundary}--\r\n`),
+  ]);
+  const res = await host.app.inject({
+    method: 'POST',
+    url: '/files',
+    payload,
+    headers: { ...bearer(token), 'content-type': `multipart/form-data; boundary=${boundary}` },
+  });
+  if (res.statusCode !== 201) throw new Error(`upload failed: ${res.statusCode} ${res.body}`);
+  return res.json().id as string;
+}

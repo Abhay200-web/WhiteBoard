@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { updateProfileRequestSchema } from '@whiteboard/core';
 import { Button, Card, Field, Input } from '@whiteboard/ui';
 import { useState, type FormEvent, type ReactNode } from 'react';
-import { Link, Navigate } from 'react-router';
+import { Link } from 'react-router';
 
 import { useAuth } from '../../auth/AuthProvider';
 import { useHostInfo } from '../../auth/guards';
@@ -101,20 +101,6 @@ export function ConnectionSection() {
       <Link to="/connect" className="mt-4 inline-block text-sm text-accent underline">
         Connect to a different Host
       </Link>
-    </Card>
-  );
-}
-
-/** Admins only. Backups, restore and disk space arrive in Part 3. */
-export function HostSection() {
-  const { user } = useAuth();
-  if (user && user.role !== 'owner' && user.role !== 'admin') {
-    return <Navigate to="/settings/account" replace />;
-  }
-  return (
-    <Card className="max-w-md">
-      <h2 className="font-semibold">Host</h2>
-      <p className="mt-2 text-sm text-muted">Backups and Host storage settings will appear here.</p>
     </Card>
   );
 }
