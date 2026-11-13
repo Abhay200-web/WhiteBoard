@@ -7,3 +7,4 @@ export { Input } from './Input';
 export { Modal, type ModalProps } from './Modal';
 export { Select } from './Select';
 export { Spinner } from './Spinner';
+export { FileUploader, type FileUploaderProps, type UploadControls } from './FileUploader';
