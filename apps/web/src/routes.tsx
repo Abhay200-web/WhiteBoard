@@ -9,7 +9,8 @@ import { JoinPage } from './pages/JoinPage';
 import { LoginPage } from './pages/LoginPage';
 import { MembersPage } from './pages/members/MembersPage';
 import { HomePage, NotFoundPage } from './pages/misc';
-import { AccountSection, ConnectionSection, HostSection } from './pages/settings/sections';
+import { HostSection } from './pages/settings/HostSection';
+import { AccountSection, ConnectionSection } from './pages/settings/sections';
 import { SetupPage } from './pages/SetupPage';
 
 export const routes: RouteObject[] = [

@@ -7,6 +7,7 @@ import { authRoutes } from './routes/auth';
 import { backupRoutes } from './routes/backups';
 import { fileRoutes } from './routes/files';
 import { hostRoutes } from './routes/host';
+import { hostSettingsRoutes } from './routes/host-settings';
 import { inviteRoutes } from './routes/invites';
 import { memberRoutes } from './routes/members';
 import { setupRoutes, type RateLimitOptions } from './routes/setup';
@@ -44,5 +45,6 @@ export function buildApp({
   app.register(memberRoutes, { db });
   app.register(fileRoutes, { db, dataDir });
   app.register(backupRoutes, { db, dataDir });
+  app.register(hostSettingsRoutes, { db, dataDir });
   return app;
 }
