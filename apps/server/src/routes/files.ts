@@ -1,15 +1,11 @@
 import multipart from '@fastify/multipart';
-import {
-  DEFAULT_MAX_UPLOAD_BYTES,
-  fileSchema,
-  type FileInfo,
-  type WorkspaceRole,
-} from '@whiteboard/core';
-import { files, hostSettings, type Db } from '@whiteboard/db';
-import { eq } from 'drizzle-orm';
+import { DEFAULT_MAX_UPLOAD_BYTES, fileSchema, type FileInfo } from '@whiteboard/core';
+import { files, hostSettings, projectFiles, projectMembers, type Db } from '@whiteboard/db';
+import { and, eq } from 'drizzle-orm';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 
-import { authenticate, requireRole, sendError, ADMIN_ROLES, ALL_ROLES } from '../plugins/auth';
+import { authenticate, requireRole, sendError, ALL_ROLES } from '../plugins/auth';
+import { isAdmin, type Actor } from '../projects/access';
 import {
   UnsupportedFileError,
   fileExists,
@@ -30,11 +26,18 @@ export function getMaxUploadBytes(db: Db): number {
 type FileRow = typeof files.$inferSelect;
 
 /**
- * Who may read a file. For now: the uploader and workspace admins. Part 3.6 adds "members of a
- * project the file is attached to" here — every file route goes through this one function.
+ * Who may read a file: the uploader, workspace admins, and members of any project the file is
+ * attached to (`project_files`). Every file route goes through this one function.
  */
-export function canAccessFile(auth: { user: { id: string; role: WorkspaceRole } }, file: FileRow) {
-  return file.uploadedBy === auth.user.id || ADMIN_ROLES.some((r) => r === auth.user.role);
+export function canAccessFile(db: Db, auth: Actor, file: FileRow): boolean {
+  if (file.uploadedBy === auth.user.id || isAdmin(auth)) return true;
+  const shared = db
+    .select({ projectId: projectFiles.projectId })
+    .from(projectFiles)
+    .innerJoin(projectMembers, eq(projectMembers.projectId, projectFiles.projectId))
+    .where(and(eq(projectFiles.fileId, file.id), eq(projectMembers.userId, auth.user.id)))
+    .get();
+  return shared !== undefined;
 }
 
 /** Types a browser can show in place; everything else is downloaded. */
@@ -109,7 +112,7 @@ export const fileRoutes: FastifyPluginAsync<{ db: Db; dataDir: string }> = async
   function findAccessible(request: FastifyRequest) {
     const { id } = request.params as { id: string };
     const row = db.select().from(files).where(eq(files.id, id)).get();
-    return row && canAccessFile(request.auth!, row) ? row : null;
+    return row && canAccessFile(db, request.auth!, row) ? row : null;
   }
 
   app.get('/files/:id', { preHandler: signedIn }, async (request, reply) => {
