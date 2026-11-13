@@ -5,6 +5,7 @@ export const APP_NAME = 'Whiteboard';
 export const HOST_PORT = 47800;
 
 export * from './auth';
+export * from './files';
 export * from './host';
 export * from './members';
 export * from './roles';
