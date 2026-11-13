@@ -32,6 +32,7 @@
   "dependencies": {
     "@tanstack/react-query": "5.107.1",
     "@whiteboard/core": "workspace:*",
+    "@whiteboard/editor": "workspace:*",
     "@whiteboard/ui": "workspace:*",
     "pdfjs-dist": "^6.5.438",
     "react": "19.3.1",

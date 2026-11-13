@@ -5,6 +5,7 @@ import { useAuth } from '../auth/AuthProvider';
 
 const NAV = [
   { to: '/', label: 'Home', end: true, adminOnly: false },
+  { to: '/projects', label: 'Projects', end: false, adminOnly: false },
   { to: '/members', label: 'Members', end: false, adminOnly: true },
   { to: '/settings', label: 'Settings', end: false, adminOnly: false },
 ];
