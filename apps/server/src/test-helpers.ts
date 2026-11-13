@@ -22,6 +22,8 @@ import { createSession } from './auth/sessions';
 
 export interface TestHost {
   db: Db;
+  /** Temp data folder the Host stores uploaded files in. */
+  dataDir: string;
   app: FastifyInstance;
   cleanup: () => Promise<void>;
 }
@@ -32,9 +34,15 @@ export function createTestHost(opts: Partial<AppOptions> = {}): TestHost {
   const { db, close } = openDatabase(path.join(tmp, 'test.db'));
   migrateDatabase(db);
   // Tests make many sign-ins; keep the limit high unless a test lowers it.
-  const app = buildApp({ db, authRateLimit: { max: 1000, timeWindow: '1 minute' }, ...opts });
+  const app = buildApp({
+    db,
+    dataDir: tmp,
+    authRateLimit: { max: 1000, timeWindow: '1 minute' },
+    ...opts,
+  });
   return {
     db,
+    dataDir: tmp,
     app,
     cleanup: async () => {
       await app.close();

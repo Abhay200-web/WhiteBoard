@@ -20,7 +20,7 @@ describe('GET /host/info', () => {
     tmp = mkdtempSync(path.join(tmpdir(), 'wb-test-'));
     ({ db, close: closeDb } = openDatabase(path.join(tmp, 'test.db')));
     migrateDatabase(db);
-    app = buildApp({ db });
+    app = buildApp({ db, dataDir: tmp });
   });
 
   afterEach(async () => {

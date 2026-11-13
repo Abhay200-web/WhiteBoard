@@ -17,7 +17,7 @@ mkdirSync(config.dataDir, { recursive: true });
 const { db, close } = openDatabase(path.join(config.dataDir, 'whiteboard.db'));
 migrateDatabase(db);
 
-const app = buildApp({ db, logger: true });
+const app = buildApp({ db, dataDir: config.dataDir, logger: true });
 
 await app.listen({ host: config.host, port: config.port });
 

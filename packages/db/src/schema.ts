@@ -92,6 +92,28 @@ export const invites = sqliteTable('invites', {
   revokedAt: integer('revoked_at', { mode: 'timestamp_ms' }),
 });
 
+/**
+ * Every uploaded file. Bytes live on disk under `<dataDir>/files/`; `storagePath` is relative to
+ * that folder. Which project a file belongs to comes later (`project_files`).
+ */
+export const files = sqliteTable(
+  'files',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    mimeType: text('mime_type').notNull(),
+    size: integer('size').notNull(),
+    sha256: text('sha256').notNull(),
+    storagePath: text('storage_path').notNull(),
+    thumbnailPath: text('thumbnail_path'),
+    uploadedBy: text('uploaded_by')
+      .notNull()
+      .references(() => users.id),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [index('files_sha256_idx').on(t.sha256)],
+);
+
 /** Last run of each scheduled job, so missed runs are caught up after Host downtime. */
 export const jobs = sqliteTable('jobs', {
   name: text('name').primaryKey(),
