@@ -1,10 +1,11 @@
 # Whiteboard — Progress Log
 
 > **Update this file every time a feature is completed.** Tick the box, add the date and PR/commit, and add a line to the Changelog.
+> **Full plan (what the project is, where code goes, every remaining step in order): [`docs/MASTER_PLAN.md`](docs/MASTER_PLAN.md)**
 > Plan details: [`docs/PHASE_A_PLAN.md`](docs/PHASE_A_PLAN.md) · Spec: [`docs/PRODUCT_SPEC.md`](docs/PRODUCT_SPEC.md) · Schedule: [`docs/EXECUTION_PLAN.md`](docs/EXECUTION_PLAN.md)
 
-**Current phase:** Phase A (MVP) — Part 2 complete except task reassignment (Part 4) — Part 3 next
-**Last updated:** 2026-11-12 (Parts 1-2 merged; Part 3 not started)
+**Current phase:** Phase A (MVP) - Parts 1, 2 and 3 are complete and merged into `develop`; **Part 4 (tasks) is next**
+**Last updated:** 2026-11-13 (end of day 2; nothing in progress, working tree clean)
 
 Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
@@ -12,9 +13,11 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ## Resume here
 
-**State (2026-11-13):** Phase A Parts 1-2 and Part 3 steps 3.1 and 3.3 are merged into `develop`. **All of Part 3 is now built** on branch `feat/phase-a-part3-rest` (3.4 Host settings, 3.5 projects API, 3.6 project files, 3.2 uploader + previews, 3.7 projects UI; one commit each, not yet pushed/merged). **Next: Part 4** (tasks, kanban, comments, notifications), starting with 4.1 Tasks API. `task_statuses` are already seeded per project.
+**State (2026-11-13, end of day):** Phase A Parts 1, 2 and 3 are **done and merged into `develop`** (PRs #6-#11). Nothing is half-finished. **Tomorrow: start Part 4** - first 4.0 (project edit dialog) and 4.1 (Tasks API). Create the branch from `develop` (for example `feat/phase-a-tasks`). The step-by-step plan, with files, endpoints, tables and tests for every remaining step, is in **`docs/MASTER_PLAN.md`** (section 4).
 
-**Part 3 follow-ups (not blockers):** edit a project's details/brief after creation; project cover image; previews load files fully as blobs (signed URLs would stream large videos); restore is a CLI step (Host must be stopped), not a button; backups are full copies (incremental later).
+**Order of what is left:** Part 4 (tasks, kanban, comments, notifications, offboarding wire-up) -> Step T (Tauri shell + installer sidecar spike) -> Part 5 (deliverables, reviews, compare, pins, deadlines, desktop notifications, release, acceptance `v0.1.0`) -> Phase B (boards) -> Phase C -> Phase D.
+
+**Part 3 follow-ups (not blockers):** edit a project details/brief after creation (planned as 4.0); project cover image; previews load files fully as blobs (signed URLs in Step T.5); restore is a CLI step, a button comes with the desktop shell (T.4); backups are full copies (incremental in Phase C).
 
 **Before every push (CI runs exactly these, on Linux, Node 22):**
 `pnpm format` then `pnpm format:check && pnpm lint && pnpm typecheck && pnpm test`. For UI flows also `pnpm --filter @whiteboard/web e2e`.
@@ -40,7 +43,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 **Open items carried forward:**
 
 - 2.5 task-reassignment step in the remove-member dialog → wire up in Part 4.
-- Week 0 still open: sidecar spike and Tauri shell (needed before real desktop use and for Host discovery).
+- Week 0 leftovers (sidecar spike, Tauri shell) are now Step T in `docs/MASTER_PLAN.md`; do them right after Part 4.
 - Re-invite path for a removed member's email (decide with the owner).
 
 ---
@@ -49,8 +52,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 - [x] Monorepo scaffold (pnpm + Turborepo, lint, format, typecheck, Vitest, CI, CODEOWNERS)
 - [x] Server hello-world (Fastify + SQLite + Drizzle + `GET /host/info`)
-- [ ] Sidecar spike (Node + native modules in Tauri installer)
-- [ ] Tauri shell (first-run screen, start/stop sidecar, tray)
+- [ ] Sidecar spike (Node + native modules in Tauri installer) - **moved to Step T.1**
+- [ ] Tauri shell (first-run screen, start/stop sidecar, tray) - **moved to Step T.2**
 - [x] Web app shell (Vite + React 19, react-router, Tailwind 4, light/dark tokens, base components in `packages/ui`, MSW + Vitest, Playwright config + smoke test, route guards, API client) — 2026-11-12
 - [ ] `/setup` contract + wizard started
 
@@ -89,13 +92,23 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ### Part 4 — Tasks, kanban, comments, notifications
 
+- [ ] 4.0 Edit project details/brief dialog (UI for existing `PATCH /projects/:id`)
 - [ ] 4.1 Tasks API (statuses, assignees, subtasks, files, priority, due)
 - [ ] 4.2 Task list view + detail drawer
 - [ ] 4.3 Kanban with drag-to-status
 - [ ] 4.4 My tasks + review-queue queries and pages
 - [ ] 4.5 Task history + comments + @mentions
 - [ ] 4.6 Notifications (rows + `/events` WebSocket) + bell + inbox
-- [ ] 4.7 Live task updates over `/events`
+- [ ] 4.7 Live task updates over `/events` (+ reconnecting banner)
+- [ ] 4.8 Offboarding wire-up: reassign open tasks on member removal and guest expiry
+
+### Step T — Desktop shell and installer (between Part 4 and Part 5)
+
+- [ ] T.1 Sidecar spike (Node + better-sqlite3 + sharp inside the Tauri installer) + ADR 0002
+- [ ] T.2 Tauri shell (Host/Client first-run screen, start/stop/restart sidecar, tray)
+- [ ] T.3 Discovery bridge (`window.whiteboardDesktop.discoverHosts`)
+- [ ] T.4 Restore-from-backup button in Settings > Host
+- [ ] T.5 Short-lived signed file URLs (stream video with Range)
 
 ### Part 5 — Review flow, pins, desktop, release
 
