@@ -4,6 +4,7 @@ import type { Db } from '@whiteboard/db';
 import Fastify, { type FastifyInstance } from 'fastify';
 
 import { authRoutes } from './routes/auth';
+import { backupRoutes } from './routes/backups';
 import { fileRoutes } from './routes/files';
 import { hostRoutes } from './routes/host';
 import { inviteRoutes } from './routes/invites';
@@ -42,5 +43,6 @@ export function buildApp({
   app.register(inviteRoutes, { db, rateLimit: authRateLimit });
   app.register(memberRoutes, { db });
   app.register(fileRoutes, { db, dataDir });
+  app.register(backupRoutes, { db, dataDir });
   return app;
 }
