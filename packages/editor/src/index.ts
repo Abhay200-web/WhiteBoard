@@ -1,2 +1,2 @@
 // TipTap config and extensions
-export {};
+export { RichTextEditor, RichTextView, isRichTextEmpty, type RichTextDoc } from './RichText';

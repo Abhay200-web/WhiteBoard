@@ -11,7 +11,17 @@ export default defineConfig({
     // In dev and E2E the browser talks to the Host through the dev server, so no CORS is needed.
     // Page navigations (Accept: text/html, e.g. reloading /setup) must get the app, not the Host.
     proxy: Object.fromEntries(
-      ['/host', '/setup', '/auth', '/members', '/invites'].map((p) => [
+      [
+        '/host',
+        '/setup',
+        '/auth',
+        '/members',
+        '/invites',
+        '/files',
+        '/backups',
+        '/projects',
+        '/people',
+      ].map((p) => [
         p,
         {
           target: HOST,

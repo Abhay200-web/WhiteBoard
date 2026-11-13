@@ -1,5 +1,11 @@
 // SQLite schema (spec §6). Timestamps are integer ms, ids are text (ULID).
-import { WORKSPACE_ROLES } from '@whiteboard/core';
+import {
+  PROJECT_FILE_KINDS,
+  PROJECT_MEMBER_ROLES,
+  PROJECT_STATUSES,
+  TASK_STATUS_KINDS,
+  WORKSPACE_ROLES,
+} from '@whiteboard/core';
 import { index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
 export const users = sqliteTable('users', {
@@ -91,6 +97,110 @@ export const invites = sqliteTable('invites', {
   usedBy: text('used_by').references(() => users.id),
   revokedAt: integer('revoked_at', { mode: 'timestamp_ms' }),
 });
+
+/**
+ * Every uploaded file. Bytes live on disk under `<dataDir>/files/`; `storagePath` is relative to
+ * that folder. Which project a file belongs to comes later (`project_files`).
+ */
+export const files = sqliteTable(
+  'files',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    mimeType: text('mime_type').notNull(),
+    size: integer('size').notNull(),
+    sha256: text('sha256').notNull(),
+    storagePath: text('storage_path').notNull(),
+    thumbnailPath: text('thumbnail_path'),
+    uploadedBy: text('uploaded_by')
+      .notNull()
+      .references(() => users.id),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [index('files_sha256_idx').on(t.sha256)],
+);
+
+/** A creative project. `brief` and `instructions` are TipTap (ProseMirror) JSON. */
+export const projects = sqliteTable(
+  'projects',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    name: text('name').notNull(),
+    clientName: text('client_name'),
+    brief: text('brief', { mode: 'json' }),
+    instructions: text('instructions', { mode: 'json' }),
+    status: text('status', { enum: PROJECT_STATUSES }).notNull().default('draft'),
+    startDate: integer('start_date', { mode: 'timestamp_ms' }),
+    deadline: integer('deadline', { mode: 'timestamp_ms' }),
+    /** Whole currency units; optional. */
+    budget: integer('budget'),
+    color: text('color'),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => users.id),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    archivedAt: integer('archived_at', { mode: 'timestamp_ms' }),
+  },
+  (t) => [index('projects_workspace_idx').on(t.workspaceId)],
+);
+
+/** Project-level role (manager | artist), separate from the workspace role. */
+export const projectMembers = sqliteTable(
+  'project_members',
+  {
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id),
+    role: text('role', { enum: PROJECT_MEMBER_ROLES }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.projectId, t.userId] }),
+    index('project_members_user_idx').on(t.userId),
+  ],
+);
+
+/** Task columns of a project; seeded with six defaults (one per kind). Used by Part 4. */
+export const taskStatuses = sqliteTable(
+  'task_statuses',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id),
+    name: text('name').notNull(),
+    kind: text('kind', { enum: TASK_STATUS_KINDS }).notNull(),
+    sortKey: integer('sort_key').notNull(),
+  },
+  (t) => [index('task_statuses_project_idx').on(t.projectId)],
+);
+
+/** Files attached to a project. Only project members (and admins) can read them. */
+export const projectFiles = sqliteTable(
+  'project_files',
+  {
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id),
+    fileId: text('file_id')
+      .notNull()
+      .references(() => files.id),
+    kind: text('kind', { enum: PROJECT_FILE_KINDS }).notNull(),
+    addedBy: text('added_by')
+      .notNull()
+      .references(() => users.id),
+    addedAt: integer('added_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.projectId, t.fileId] }),
+    index('project_files_file_idx').on(t.fileId),
+  ],
+);
 
 /** Last run of each scheduled job, so missed runs are caught up after Host downtime. */
 export const jobs = sqliteTable('jobs', {

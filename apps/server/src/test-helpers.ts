@@ -22,6 +22,8 @@ import { createSession } from './auth/sessions';
 
 export interface TestHost {
   db: Db;
+  /** Temp data folder the Host stores uploaded files in. */
+  dataDir: string;
   app: FastifyInstance;
   cleanup: () => Promise<void>;
 }
@@ -32,9 +34,15 @@ export function createTestHost(opts: Partial<AppOptions> = {}): TestHost {
   const { db, close } = openDatabase(path.join(tmp, 'test.db'));
   migrateDatabase(db);
   // Tests make many sign-ins; keep the limit high unless a test lowers it.
-  const app = buildApp({ db, authRateLimit: { max: 1000, timeWindow: '1 minute' }, ...opts });
+  const app = buildApp({
+    db,
+    dataDir: tmp,
+    authRateLimit: { max: 1000, timeWindow: '1 minute' },
+    ...opts,
+  });
   return {
     db,
+    dataDir: tmp,
     app,
     cleanup: async () => {
       await app.close();
@@ -92,3 +100,28 @@ export async function setupOwner(host: TestHost): Promise<{ token: string; works
 }
 
 export const bearer = (token: string) => ({ authorization: `Bearer ${token}` });
+
+/** Uploads a file through `POST /files` and returns its id. */
+export async function uploadTestFile(
+  host: TestHost,
+  token: string,
+  name: string,
+  content: Buffer,
+): Promise<string> {
+  const boundary = '----wbtest';
+  const payload = Buffer.concat([
+    Buffer.from(
+      `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${name}"\r\n\r\n`,
+    ),
+    content,
+    Buffer.from(`\r\n--${boundary}--\r\n`),
+  ]);
+  const res = await host.app.inject({
+    method: 'POST',
+    url: '/files',
+    payload,
+    headers: { ...bearer(token), 'content-type': `multipart/form-data; boundary=${boundary}` },
+  });
+  if (res.statusCode !== 201) throw new Error(`upload failed: ${res.statusCode} ${res.body}`);
+  return res.json().id as string;
+}

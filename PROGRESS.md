@@ -1,12 +1,50 @@
 # Whiteboard — Progress Log
 
 > **Update this file every time a feature is completed.** Tick the box, add the date and PR/commit, and add a line to the Changelog.
+> **Full plan (what the project is, where code goes, every remaining step in order): [`docs/MASTER_PLAN.md`](docs/MASTER_PLAN.md)**
 > Plan details: [`docs/PHASE_A_PLAN.md`](docs/PHASE_A_PLAN.md) · Spec: [`docs/PRODUCT_SPEC.md`](docs/PRODUCT_SPEC.md) · Schedule: [`docs/EXECUTION_PLAN.md`](docs/EXECUTION_PLAN.md)
 
-**Current phase:** Phase A (MVP) — Part 2 complete except task reassignment (Part 4) — Part 3 next
-**Last updated:** 2026-11-12 (Part 1 done)
+**Current phase:** Phase A (MVP) - Parts 1, 2 and 3 are complete and merged into `develop`; **Part 4 (tasks) is next**
+**Last updated:** 2026-11-13 (end of day 2; nothing in progress, working tree clean)
 
 Legend: `[ ]` todo · `[~]` in progress · `[x]` done
+
+---
+
+## Resume here
+
+**State (2026-11-13, end of day):** Phase A Parts 1, 2 and 3 are **done and merged into `develop`** (PRs #6-#11). Nothing is half-finished. **Tomorrow: start Part 4** - first 4.0 (project edit dialog) and 4.1 (Tasks API). Create the branch from `develop` (for example `feat/phase-a-tasks`). The step-by-step plan, with files, endpoints, tables and tests for every remaining step, is in **`docs/MASTER_PLAN.md`** (section 4).
+
+**Order of what is left:** Part 4 (tasks, kanban, comments, notifications, offboarding wire-up) -> Step T (Tauri shell + installer sidecar spike) -> Part 5 (deliverables, reviews, compare, pins, deadlines, desktop notifications, release, acceptance `v0.1.0`) -> Phase B (boards) -> Phase C -> Phase D.
+
+**Part 3 follow-ups (not blockers):** edit a project details/brief after creation (planned as 4.0); project cover image; previews load files fully as blobs (signed URLs in Step T.5); restore is a CLI step, a button comes with the desktop shell (T.4); backups are full copies (incremental in Phase C).
+
+**Before every push (CI runs exactly these, on Linux, Node 22):**
+`pnpm format` then `pnpm format:check && pnpm lint && pnpm typecheck && pnpm test`. For UI flows also `pnpm --filter @whiteboard/web e2e`.
+
+**Local environment notes:**
+
+- `pnpm` is not on PATH here; use `npx --yes pnpm@12.18.0 <cmd>` (the pinned version).
+- Playwright Chromium is installed. E2E uses a fresh temp data dir each run.
+- Server dev: `pnpm --filter @whiteboard/server dev` (port 47800). Web dev: `pnpm --filter @whiteboard/web dev` (port 5173, proxies the Host).
+- Writing large files from the Bash tool with heredocs can fail on quoting; use the editor/Write tool.
+
+**Decisions and deviations from the plan:**
+
+- Auth is custom (scrypt password hashes, SHA-256-hashed opaque bearer tokens, 30-day sliding sessions), not Better Auth, so our own `users`/`memberships` tables stay the source of truth.
+- IDs are `crypto.randomUUID()` (the spec comment says ULID).
+- Removed members are soft-deleted (`memberships.removed_at`); their email stays reserved.
+- Admins manage members/guests only; only the owner manages admins; nobody acts on their own account via `/members`.
+- Invite codes: 12 symbols, hashed, one-time, 7-day expiry; guests need an end date.
+- mDNS announce (`_whiteboard._tcp`) is on the server; the "found on this network" list needs the Tauri desktop bridge (`window.whiteboardDesktop.discoverHosts`), not built yet.
+- Dev proxy serves the app (not the Host) for page loads (`Accept: text/html`) on paths shared with the API (`/setup`, `/members`, ...). Add any new API path prefix to `apps/web/vite.config.ts`.
+- The permission matrix test (`apps/server/src/plugins/auth.test.ts`) must be extended for every new route.
+
+**Open items carried forward:**
+
+- 2.5 task-reassignment step in the remove-member dialog → wire up in Part 4.
+- Week 0 leftovers (sidecar spike, Tauri shell) are now Step T in `docs/MASTER_PLAN.md`; do them right after Part 4.
+- Re-invite path for a removed member's email (decide with the owner).
 
 ---
 
@@ -14,8 +52,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 - [x] Monorepo scaffold (pnpm + Turborepo, lint, format, typecheck, Vitest, CI, CODEOWNERS)
 - [x] Server hello-world (Fastify + SQLite + Drizzle + `GET /host/info`)
-- [ ] Sidecar spike (Node + native modules in Tauri installer)
-- [ ] Tauri shell (first-run screen, start/stop sidecar, tray)
+- [ ] Sidecar spike (Node + native modules in Tauri installer) - **moved to Step T.1**
+- [ ] Tauri shell (first-run screen, start/stop sidecar, tray) - **moved to Step T.2**
 - [x] Web app shell (Vite + React 19, react-router, Tailwind 4, light/dark tokens, base components in `packages/ui`, MSW + Vitest, Playwright config + smoke test, route guards, API client) — 2026-11-12
 - [ ] `/setup` contract + wizard started
 
@@ -44,23 +82,33 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ### Part 3 — Projects, files, backups
 
-- [ ] 3.1 Files pipeline (streamed upload, sha256, content check, thumbnails, Range)
-- [ ] 3.2 Shared file uploader + previews (image, PDF, video)
-- [ ] 3.3 Backups (daily, Backup now, pre-migration, pruning, stale warning) + restore
-- [ ] 3.4 Host settings page
-- [ ] 3.5 Projects API + status flow + project members
-- [ ] 3.6 Project files
-- [ ] 3.7 Projects list, create-project flow (TipTap brief), overview page
+- [x] 3.1 Files pipeline (streamed upload, sha256, content check, thumbnails, Range)
+- [x] 3.2 Shared file uploader + previews (image, PDF, video)
+- [x] 3.3 Backups (daily, Backup now, pre-migration, pruning, stale warning) + restore
+- [x] 3.4 Host settings page
+- [x] 3.5 Projects API + status flow + project members
+- [x] 3.6 Project files
+- [x] 3.7 Projects list, create-project flow (TipTap brief), overview page
 
 ### Part 4 — Tasks, kanban, comments, notifications
 
+- [ ] 4.0 Edit project details/brief dialog (UI for existing `PATCH /projects/:id`)
 - [ ] 4.1 Tasks API (statuses, assignees, subtasks, files, priority, due)
 - [ ] 4.2 Task list view + detail drawer
 - [ ] 4.3 Kanban with drag-to-status
 - [ ] 4.4 My tasks + review-queue queries and pages
 - [ ] 4.5 Task history + comments + @mentions
 - [ ] 4.6 Notifications (rows + `/events` WebSocket) + bell + inbox
-- [ ] 4.7 Live task updates over `/events`
+- [ ] 4.7 Live task updates over `/events` (+ reconnecting banner)
+- [ ] 4.8 Offboarding wire-up: reassign open tasks on member removal and guest expiry
+
+### Step T — Desktop shell and installer (between Part 4 and Part 5)
+
+- [ ] T.1 Sidecar spike (Node + better-sqlite3 + sharp inside the Tauri installer) + ADR 0002
+- [ ] T.2 Tauri shell (Host/Client first-run screen, start/stop/restart sidecar, tray)
+- [ ] T.3 Discovery bridge (`window.whiteboardDesktop.discoverHosts`)
+- [ ] T.4 Restore-from-backup button in Settings > Host
+- [ ] T.5 Short-lived signed file URLs (stream video with Range)
 
 ### Part 5 — Review flow, pins, desktop, release
 
@@ -79,10 +127,17 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ## Changelog
 
-| Date       | Feature                                                                                                                     | Ref | Notes                                                                                                                                                                                                               |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------- | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-11-12 | Part 2: invites, members, password reset, offboarding, scheduler + guest expiry, mDNS, Connect + Join screens, account name | —   | 40 server + 34 web + 4 E2E tests green (invite -> join from a 2nd browser -> reuse refused -> removal kills session). Removed members' emails stay reserved (no re-invite with same email yet)                      |
-| 2026-11-12 | Part 1 UI: setup wizard, login, forced password change, app layout, settings shell                                          | —   | 20 web tests + 3 Playwright E2E (setup -> sign out -> wrong/right password) green against a real Host. Fixed dev proxy so reloading /setup serves the app                                                           |
-| 2026-11-12 | Web app shell                                                                                                               | —   | 10 web tests green, `vite build` ok. Pages for setup/login/home/settings are placeholders; guards redirect by Host + session state. Playwright browsers not installed yet (`pnpm exec playwright install chromium`) |
-| 2026-11-12 | Part 1 backend: contracts, auth tables, setup, sign-in/out/me/change-password, permission middleware, rate limiting         | —   | 18 server + 6 core tests green; typecheck + lint green. Auth is custom (scrypt + sha256-hashed bearer tokens) instead of Better Auth to keep our own users table                                                    |
-| 2026-11-12 | Repo cloned, scanned, progress log + Phase A plan created                                                                   | —   | Scaffold state: server `/host/info`, core + db packages; web/desktop/ui/editor are stubs                                                                                                                            |
+| Date       | Feature                                                                                                                                                | Ref | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-11-13 | Part 3.7: projects UI (list, create flow with TipTap brief + instructions + files, overview page with status, people, files and previews) + Part 3 E2E | —   | 66 web tests (+12) and 6 Playwright E2E green (new: manager creates project with brief + upload, adds freelancer, freelancer opens the file, outsider gets Project not found, status change, owner Backup now). `RichTextEditor`/`RichTextView` live in packages/editor. Not built: editing a project's details/brief after creation, cover image (Part 4+ or follow-up)                                                                                                                                                                                   |
+| 2026-11-13 | Part 3.2: shared `<FileUploader>` (packages/ui) + previews (image, video, PDF via pdf.js, download fallback)                                           | —   | 54 web tests green (+13). Uploader: pick/drop, per-file progress, Cancel, Retry, Dismiss, client size limit; app passes the upload function (XHR for progress). Previews fetch with the bearer token and show from a blob URL because media tags cannot send headers; large videos therefore load fully before playing (signed URLs or a cookie are a later improvement)                                                                                                                                                                                   |
+| 2026-11-13 | (3.6 API covered in the row above)                                                                                                                     | —   | Attach only files you can already read; detaching keeps the file on the Host                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| 2026-11-13 | Part 3.5 + 3.6: projects API (create/list/get/patch, status flow, members, /people) and project files (attach/list/detach)                             | —   | 82 server tests green (+11). Tables `projects`, `project_members`, `task_statuses` (6 defaults seeded), `project_files`. Staff create projects and become manager; admins see all; others only their projects (404 otherwise). Freelancers can only be artists. `canAccessFile` now also allows members of a project the file is attached to. UI for files comes with the uploader (3.2) and projects UI (3.7)                                                                                                                                             |
+| 2026-11-13 | Part 3.4: Host settings page (Backups card with Backup now + stale warning, Storage form, Restore help)                                                | —   | 71 server (+3) + 41 web (+7) tests green. `GET/PATCH /host/settings` owner-only (backup folder must be absolute + writable; upload limit 1 MB-100 GB). Restore stays a CLI step (Host must be stopped), the page shows the command. Admins see a note that only the owner manages backups                                                                                                                                                                                                                                                                  |
+| 2026-11-13 | Part 3.3: backups (daily job, Backup now, pre-migration, pruning, stale status) + restore CLI                                                          | —   | 68 server tests green (+14). `GET/POST /backups` owner-only. Backup = SQLite online backup + copy of `files/` + manifest, built in `.partial` then renamed. Retention: newest per day for 7 days + newest per week for 4 weeks, pre-migration kept 30 days, newest never deleted. Stale after 36 h. Restore: `pnpm --filter @whiteboard/server restore <folder> [--data-dir d] [--replace]` (Host stopped); verified by restoring into a second Host in a test. Backup folder from host setting `backupDir` (default `<dataDir>/backups`); 3.4 adds the UI |
+| 2026-11-13 | Part 3.1: files pipeline (`POST /files`, `GET /files/:id`, `/content` with Range, `/thumbnail`)                                                        | —   | 54 server tests green (+14). Streamed to disk + sha256, content sniffed with `file-type` (allowlist; exe renamed .jpg refused), `sharp` 320px webp thumbnails, max size from host setting `maxUploadBytes` (default 2 GiB). Access is uploader + admins only until 3.6 adds project membership in `canAccessFile`                                                                                                                                                                                                                                          |
+| 2026-11-12 | Part 2: invites, members, password reset, offboarding, scheduler + guest expiry, mDNS, Connect + Join screens, account name                            | —   | 40 server + 34 web + 4 E2E tests green (invite -> join from a 2nd browser -> reuse refused -> removal kills session). Removed members' emails stay reserved (no re-invite with same email yet)                                                                                                                                                                                                                                                                                                                                                             |
+| 2026-11-12 | Part 1 UI: setup wizard, login, forced password change, app layout, settings shell                                                                     | —   | 20 web tests + 3 Playwright E2E (setup -> sign out -> wrong/right password) green against a real Host. Fixed dev proxy so reloading /setup serves the app                                                                                                                                                                                                                                                                                                                                                                                                  |
+| 2026-11-12 | Web app shell                                                                                                                                          | —   | 10 web tests green, `vite build` ok. Pages for setup/login/home/settings are placeholders; guards redirect by Host + session state. Playwright browsers not installed yet (`pnpm exec playwright install chromium`)                                                                                                                                                                                                                                                                                                                                        |
+| 2026-11-12 | Part 1 backend: contracts, auth tables, setup, sign-in/out/me/change-password, permission middleware, rate limiting                                    | —   | 18 server + 6 core tests green; typecheck + lint green. Auth is custom (scrypt + sha256-hashed bearer tokens) instead of Better Auth to keep our own users table                                                                                                                                                                                                                                                                                                                                                                                           |
+| 2026-11-12 | Repo cloned, scanned, progress log + Phase A plan created                                                                                              | —   | Scaffold state: server `/host/info`, core + db packages; web/desktop/ui/editor are stubs                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
