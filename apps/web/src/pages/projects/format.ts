@@ -39,6 +39,15 @@ export function formatDate(ms: number | null): string {
       });
 }
 
+/** Date and time, e.g. "Mar 1, 10:30 AM" (local). */
+export const formatDateTime = (ms: number): string =>
+  new Date(ms).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+
 /** Local start of day for a `yyyy-mm-dd` date input, as Unix ms. */
 export const startOfDay = (date: string): number => new Date(`${date}T00:00:00`).getTime();
 /** Local end of day, so a deadline "today" lasts until midnight. */

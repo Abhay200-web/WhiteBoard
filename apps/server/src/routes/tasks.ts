@@ -15,10 +15,10 @@ import {
   taskStatusListSchema,
   updateSubtaskRequestSchema,
   updateTaskRequestSchema,
+  type TaskEvent,
 } from '@whiteboard/core';
 import {
   files,
-  memberships,
   projectMembers,
   projects,
   subtasks,
@@ -28,106 +28,23 @@ import {
   tasks,
   users,
   type Db,
+  type DbTx,
 } from '@whiteboard/db';
-import { and, asc, eq, gt, inArray, isNull, ne, notInArray, or, sql, type SQL } from 'drizzle-orm';
-import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
+import { and, asc, eq, inArray, ne, notInArray, sql, type SQL } from 'drizzle-orm';
+import type { FastifyPluginAsync, FastifyReply } from 'fastify';
 
 import { authenticate, badRequest, requireRole, sendError, ALL_ROLES } from '../plugins/auth';
-import { canManageProject, canViewProject, isAdmin } from '../projects/access';
+import { canManageProject, isAdmin } from '../projects/access';
+import { recordHistory } from '../projects/history';
+import { taskAccess } from '../projects/taskAccess';
 import { canAccessFile } from './files';
 
 type TaskRow = typeof tasks.$inferSelect;
-type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
-type Need = 'view' | 'manage';
+type Tx = DbTx;
 
 export const taskRoutes: FastifyPluginAsync<{ db: Db }> = async (app, { db }) => {
   const signedIn = [authenticate(db), requireRole(ALL_ROLES)];
-
-  // --- access ------------------------------------------------------------------------------
-
-  /** 404 unless the caller can see the project (no probing for ids); 403 if they must manage it. */
-  function allowed(
-    request: FastifyRequest,
-    reply: FastifyReply,
-    projectId: string | undefined,
-    need: Need,
-    notFound: string,
-  ): projectId is string {
-    const auth = request.auth!;
-    if (!projectId || !canViewProject(db, auth, projectId)) {
-      void sendError(reply, 404, 'not_found', notFound);
-      return false;
-    }
-    if (need === 'manage' && !canManageProject(db, auth, projectId)) {
-      void sendError(reply, 403, 'forbidden', 'Only a project manager can do this');
-      return false;
-    }
-    return true;
-  }
-
-  const paramId = (request: FastifyRequest) => (request.params as { id: string }).id;
-
-  function loadProjectId(request: FastifyRequest, reply: FastifyReply, need: Need) {
-    const id = db
-      .select({ id: projects.id })
-      .from(projects)
-      .where(eq(projects.id, paramId(request)))
-      .get()?.id;
-    return allowed(request, reply, id, need, 'Project not found') ? id : null;
-  }
-
-  function loadTask(
-    request: FastifyRequest,
-    reply: FastifyReply,
-    need: Need,
-    id = paramId(request),
-  ) {
-    const task = db.select().from(tasks).where(eq(tasks.id, id)).get();
-    return allowed(request, reply, task?.projectId, need, 'Task not found') ? task! : null;
-  }
-
-  function loadSubtask(request: FastifyRequest, reply: FastifyReply, need: Need) {
-    const subtask = db
-      .select()
-      .from(subtasks)
-      .where(eq(subtasks.id, paramId(request)))
-      .get();
-    const task =
-      subtask &&
-      db
-        .select({ projectId: tasks.projectId })
-        .from(tasks)
-        .where(eq(tasks.id, subtask.taskId))
-        .get();
-    return allowed(request, reply, task?.projectId, need, 'Subtask not found') ? subtask! : null;
-  }
-
-  const isAssignee = (taskId: string, userId: string) =>
-    db
-      .select({ userId: taskAssignees.userId })
-      .from(taskAssignees)
-      .where(and(eq(taskAssignees.taskId, taskId), eq(taskAssignees.userId, userId)))
-      .get() !== undefined;
-
-  /** True when every id is a current member of the project (not removed, access not expired). */
-  function allProjectMembers(projectId: string, userIds: string[]): boolean {
-    const unique = [...new Set(userIds)];
-    if (unique.length === 0) return true;
-    const found = db
-      .select({ userId: projectMembers.userId })
-      .from(projectMembers)
-      .innerJoin(memberships, eq(memberships.userId, projectMembers.userId))
-      .where(
-        and(
-          eq(projectMembers.projectId, projectId),
-          inArray(projectMembers.userId, unique),
-          isNull(memberships.removedAt),
-          or(isNull(memberships.expiresAt), gt(memberships.expiresAt, new Date())),
-        ),
-      )
-      .all();
-    return found.length === unique.length;
-  }
+  const { loadProjectId, loadTask, loadSubtask, isAssignee, allProjectMembers } = taskAccess(db);
 
   const NOT_MEMBERS = 'Tasks can only be assigned to people on this project';
   const refuseMove = (reply: FastifyReply, statusName: string) =>
@@ -218,6 +135,17 @@ export const taskRoutes: FastifyPluginAsync<{ db: Db }> = async (app, { db }) =>
 
   const reload = (id: string) =>
     serialize([db.select().from(tasks).where(eq(tasks.id, id)).get()!])[0];
+
+  /** Display names by user id, for history entries. */
+  const namesOf = (ids: string[]) =>
+    new Map(
+      db
+        .select({ id: users.id, name: users.name })
+        .from(users)
+        .where(inArray(users.id, ids))
+        .all()
+        .map((u) => [u.id, u.name]),
+    );
 
   function writeAssignees(tx: Tx, taskId: string, userIds: string[]) {
     tx.delete(taskAssignees).where(eq(taskAssignees.taskId, taskId)).run();
@@ -347,6 +275,7 @@ export const taskRoutes: FastifyPluginAsync<{ db: Db }> = async (app, { db }) =>
         })
         .run();
       writeAssignees(tx, id, b.assigneeIds);
+      recordHistory(tx, id, request.auth!.user.id, { event: 'created' });
     });
     return reply.code(201).send(reload(id));
   });
@@ -377,13 +306,16 @@ export const taskRoutes: FastifyPluginAsync<{ db: Db }> = async (app, { db }) =>
     }
 
     let sortKey = b.sortKey;
+    let moved: { from: string; to: string } | undefined;
     if (b.statusId !== undefined && b.statusId !== task.statusId) {
       const to = statusOf(task.projectId, b.statusId);
       if (!to) return badRequest(reply, 'Unknown status');
       const from = statusOf(task.projectId, task.statusId)!;
       if (!canMoveTask(from.kind, to.kind, isManager)) return refuseMove(reply, to.name);
       sortKey ??= nextTaskKey(to.id);
+      moved = { from: from.name, to: to.name };
     }
+    const dueBefore = task.dueAt?.getTime() ?? null;
 
     db.transaction((tx) => {
       tx.update(tasks)
@@ -403,6 +335,14 @@ export const taskRoutes: FastifyPluginAsync<{ db: Db }> = async (app, { db }) =>
         .run();
       if (b.sortKey !== undefined)
         spreadIfTied(tx, b.statusId ?? task.statusId, task.id, b.sortKey);
+      const record = (change: TaskEvent) => recordHistory(tx, task.id, auth.user.id, change);
+      if (moved) record({ event: 'status', ...moved });
+      if (b.priority !== undefined && b.priority !== task.priority) {
+        record({ event: 'priority', from: task.priority, to: b.priority });
+      }
+      if (b.dueAt !== undefined && b.dueAt !== dueBefore) {
+        record({ event: 'due', from: dueBefore, to: b.dueAt });
+      }
     });
     return reload(task.id);
   });
@@ -446,9 +386,21 @@ export const taskRoutes: FastifyPluginAsync<{ db: Db }> = async (app, { db }) =>
     if (!allProjectMembers(task.projectId, parsed.data.userIds)) {
       return badRequest(reply, NOT_MEMBERS);
     }
+    const before = new Set(reload(task.id)!.assignees.map((a) => a.userId));
+    const after = new Set(parsed.data.userIds);
+    const added = [...after].filter((id) => !before.has(id));
+    const removed = [...before].filter((id) => !after.has(id));
     db.transaction((tx) => {
       writeAssignees(tx, task.id, parsed.data.userIds);
       tx.update(tasks).set({ updatedAt: new Date() }).where(eq(tasks.id, task.id)).run();
+      if (added.length + removed.length > 0) {
+        const names = namesOf([...added, ...removed]);
+        recordHistory(tx, task.id, request.auth!.user.id, {
+          event: 'assignees',
+          added: added.map((id) => names.get(id)!),
+          removed: removed.map((id) => names.get(id)!),
+        });
+      }
     });
     return reload(task.id);
   });
@@ -555,15 +507,27 @@ export const taskRoutes: FastifyPluginAsync<{ db: Db }> = async (app, { db }) =>
     if (!file || !canAccessFile(db, request.auth!, file)) {
       return sendError(reply, 404, 'not_found', 'File not found');
     }
-    db.insert(taskFiles)
-      .values({
-        taskId: task.id,
-        fileId: file.id,
-        addedBy: request.auth!.user.id,
-        addedAt: new Date(),
-      })
-      .onConflictDoNothing()
-      .run();
+    db.transaction((tx) => {
+      const inserted = tx
+        .insert(taskFiles)
+        .values({
+          taskId: task.id,
+          fileId: file.id,
+          addedBy: request.auth!.user.id,
+          addedAt: new Date(),
+        })
+        .onConflictDoNothing()
+        .returning({ fileId: taskFiles.fileId })
+        .all();
+      // Attaching a file that is already there changes nothing, so it is not recorded.
+      if (inserted.length > 0) {
+        recordHistory(tx, task.id, request.auth!.user.id, {
+          event: 'file',
+          name: file.name,
+          added: true,
+        });
+      }
+    });
     return reply.code(201).send(listTaskFiles(task.id));
   });
 
@@ -572,12 +536,22 @@ export const taskRoutes: FastifyPluginAsync<{ db: Db }> = async (app, { db }) =>
     const task = loadTask(request, reply, 'manage');
     if (!task) return;
     const { fileId } = request.params as { fileId: string };
-    const removed = db
-      .delete(taskFiles)
-      .where(and(eq(taskFiles.taskId, task.id), eq(taskFiles.fileId, fileId)))
-      .returning({ fileId: taskFiles.fileId })
-      .all();
-    if (removed.length === 0) return sendError(reply, 404, 'not_found', 'File is not on this task');
+    const removed = db.transaction((tx) => {
+      const gone = tx
+        .delete(taskFiles)
+        .where(and(eq(taskFiles.taskId, task.id), eq(taskFiles.fileId, fileId)))
+        .returning({ fileId: taskFiles.fileId })
+        .all();
+      if (gone.length === 0) return false;
+      const { name } = tx
+        .select({ name: files.name })
+        .from(files)
+        .where(eq(files.id, fileId))
+        .get()!;
+      recordHistory(tx, task.id, request.auth!.user.id, { event: 'file', name, added: false });
+      return true;
+    });
+    if (!removed) return sendError(reply, 404, 'not_found', 'File is not on this task');
     return reply.code(204).send();
   });
 };

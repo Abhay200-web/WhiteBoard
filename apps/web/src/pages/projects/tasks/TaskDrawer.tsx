@@ -26,6 +26,7 @@ import { AttachedFiles } from '../AttachedFiles';
 import { PRIORITY_LABEL, toDateTimeInput } from '../format';
 import { AddTitleForm } from './AddTitleForm';
 import { patchTask, tasksKey, useUpdateTask } from './queries';
+import { TaskComments, TaskHistory } from './TaskActivity';
 
 /**
  * Checklist. Managers add and delete items; managers and assignees tick them. `onChange` gets
@@ -316,6 +317,12 @@ export function TaskDrawer({
             onChange={() => void queryClient.invalidateQueries({ queryKey: tasksKey(project.id) })}
           />
         </div>
+
+        <div>
+          <h3 className="mb-1.5 text-sm font-medium">Comments</h3>
+          <TaskComments taskId={task.id} members={project.members} canModerate={canManage} />
+        </div>
+        <TaskHistory task={task} />
 
         <div className="flex justify-between gap-2 border-t border-line pt-4">
           {canManage &&

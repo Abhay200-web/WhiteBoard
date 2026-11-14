@@ -24,6 +24,7 @@ export default defineConfig({
         '/tasks',
         '/subtasks',
         '/me/',
+        '/comments',
       ].map((p) => [
         p,
         {

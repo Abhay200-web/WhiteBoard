@@ -135,3 +135,61 @@ export type AttachedFile = z.infer<typeof attachedFileSchema>;
 export const attachedFileListSchema = z.array(attachedFileSchema);
 
 export const attachTaskFileRequestSchema = z.object({ fileId: z.string().min(1) });
+
+// --- comments ------------------------------------------------------------------------------
+
+/** A task comment: plain text. `mentions` are the user ids @-mentioned in it (project members). */
+export const commentSchema = z.object({
+  id: z.string(),
+  taskId: z.string(),
+  authorId: z.string(),
+  authorName: z.string(),
+  body: z.string(),
+  mentions: z.array(z.string()),
+  createdAt: z.number().int(),
+  editedAt: z.number().int().nullable(),
+});
+export type Comment = z.infer<typeof commentSchema>;
+export const commentListSchema = z.array(commentSchema);
+
+/**
+ * `POST /tasks/:id/comments` and `PATCH /comments/:id`. The web sends the ids of the people it
+ * offered for @-mention; the Host keeps only those still on the project.
+ */
+export const commentRequestSchema = z.object({
+  body: z.string().trim().min(1, 'Write something first').max(5000),
+  mentionIds: z.array(z.string().min(1)).max(50).default([]),
+});
+
+// --- history -------------------------------------------------------------------------------
+
+/** What happened to a task. Names are kept as they were then, so old entries still read right. */
+export const taskEventSchema = z.discriminatedUnion('event', [
+  z.object({ event: z.literal('created') }),
+  z.object({ event: z.literal('status'), from: z.string(), to: z.string() }),
+  z.object({
+    event: z.literal('assignees'),
+    added: z.array(z.string()),
+    removed: z.array(z.string()),
+  }),
+  z.object({
+    event: z.literal('priority'),
+    from: z.enum(TASK_PRIORITIES),
+    to: z.enum(TASK_PRIORITIES),
+  }),
+  z.object({
+    event: z.literal('due'),
+    from: z.number().int().nullable(),
+    to: z.number().int().nullable(),
+  }),
+  z.object({ event: z.literal('file'), name: z.string(), added: z.boolean() }),
+  z.object({ event: z.literal('comment') }),
+]);
+export type TaskEvent = z.infer<typeof taskEventSchema>;
+
+/** `GET /tasks/:id/history`, oldest first. */
+export const taskHistoryEntrySchema = taskEventSchema.and(
+  z.object({ id: z.string(), actorName: z.string(), at: z.number().int() }),
+);
+export type TaskHistoryEntry = z.infer<typeof taskHistoryEntrySchema>;
+export const taskHistorySchema = z.array(taskHistoryEntrySchema);
