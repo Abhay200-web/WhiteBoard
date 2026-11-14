@@ -7,6 +7,9 @@ import {
   type TaskStatusKind,
 } from './projects';
 
+/** Gap between sort keys (Host and web), so a card can later be dropped between two others. */
+export const SORT_STEP = 1000;
+
 export const TASK_PRIORITIES = ['low', 'medium', 'high', 'urgent'] as const;
 export type TaskPriority = (typeof TASK_PRIORITIES)[number];
 

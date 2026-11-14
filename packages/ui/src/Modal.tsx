@@ -18,28 +18,20 @@ const PLACEMENT = {
   right: { backdrop: 'flex justify-end', panel: 'h-full border-l' },
 } as const;
 
-/** Accessible modal: Escape and backdrop click close it, focus moves inside on open. */
+/**
+ * Accessible modal: Escape and backdrop click close it, focus moves inside on open and back
+ * afterwards. Escape is handled on the panel and stopped there, so in nested modals (a file
+ * preview inside the task drawer) only the top one closes.
+ */
 export function Modal({ title, onClose, children, size = 'md', placement = 'center' }: ModalProps) {
   const titleId = useId();
   const panel = useRef<HTMLDivElement>(null);
-  // Callers pass a new `onClose` on every render; keep the latest without re-running the
-  // focus effect (which would pull focus out of the field being typed in).
-  const close = useRef(onClose);
-  useEffect(() => {
-    close.current = onClose;
-  });
 
+  // Once on open, not on every render: re-running would pull focus out of the field in use.
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     panel.current?.focus();
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') close.current();
-    };
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      previous?.focus?.();
-    };
+    return () => previous?.focus?.();
   }, []);
 
   return (
@@ -55,6 +47,11 @@ export function Modal({ title, onClose, children, size = 'md', placement = 'cent
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
+        onKeyDown={(event) => {
+          if (event.key !== 'Escape') return;
+          event.stopPropagation();
+          onClose();
+        }}
         className={cn(
           'w-full overflow-y-auto border-line bg-surface p-6 shadow-lg outline-none',
           PLACEMENT[placement].panel,

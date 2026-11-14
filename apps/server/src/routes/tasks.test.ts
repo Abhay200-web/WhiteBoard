@@ -297,3 +297,39 @@ describe('subtasks and files', () => {
     expect((await call('GET', `/files/${fileId}`, manager.token)).statusCode).toBe(200);
   });
 });
+
+describe('leaving a project and reordering', () => {
+  it("takes people off the project's tasks when they leave it, so the task can be reassigned", async () => {
+    const task = await createTask({ assigneeIds: [artist.id] });
+    const removed = await call(
+      'DELETE',
+      `/projects/${projectId}/members/${artist.id}`,
+      manager.token,
+    );
+    expect(removed.statusCode).toBe(204);
+    const after = (await call('GET', `/tasks/${task.id}`, manager.token)).json() as Task;
+    expect(after.assignees).toEqual([]);
+    const reassigned = await call('PUT', `/tasks/${task.id}/assignees`, manager.token, {
+      userIds: [manager.id],
+    });
+    expect(reassigned.statusCode).toBe(200);
+  });
+
+  it('renumbers a column when a dropped card ties with its neighbour', async () => {
+    await createTask({ title: 'A' }); // sort key 1000
+    const b = await createTask({ title: 'B' }); // 2000
+    const c = await createTask({ title: 'C' }); // 3000
+    await call('PATCH', `/tasks/${b.id}`, manager.token, { sortKey: 1001 }); // no gap left after A
+    // The board drops C before B at floor((1000 + 1001) / 2) = 1000, the same key as A.
+    const moved = await call('PATCH', `/tasks/${c.id}`, manager.token, { sortKey: 1000 });
+    expect(moved.json().sortKey).toBe(2000);
+    const list = (
+      await call('GET', `/projects/${projectId}/tasks`, manager.token)
+    ).json() as Task[];
+    expect(list.map((t) => [t.title, t.sortKey])).toEqual([
+      ['A', 1000],
+      ['C', 2000],
+      ['B', 3000],
+    ]);
+  });
+});
