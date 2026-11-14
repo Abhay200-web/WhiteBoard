@@ -88,7 +88,10 @@ describe('live task updates', () => {
     // Fred adds a task in another window; the Host tells this one.
     tasks.push(task('t2', 'Icon'));
     pushChange();
-    expect(await screen.findByRole('button', { name: 'Icon' })).toBeInTheDocument();
+    // Up to 3 s: in the full run the server and web tests share the machine.
+    expect(
+      await screen.findByRole('button', { name: 'Icon' }, { timeout: 3000 }),
+    ).toBeInTheDocument();
   });
 
   it('says it is reconnecting when the Host goes away, and catches up when it is back', async () => {

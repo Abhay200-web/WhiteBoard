@@ -79,6 +79,28 @@ export const memberListSchema = z.array(memberSchema);
 export const passwordResetSchema = z.object({ temporaryPassword: z.string() });
 export type PasswordReset = z.infer<typeof passwordResetSchema>;
 
+/**
+ * `GET /members/:id/open-tasks`: the member's unfinished tasks, each with the people on its
+ * project who could take it over, for the remove dialog.
+ */
+export const openTaskSchema = z.object({
+  taskId: z.string(),
+  title: z.string(),
+  projectId: z.string(),
+  projectName: z.string(),
+  candidates: z.array(z.object({ userId: z.string(), name: z.string() })),
+});
+export type OpenTask = z.infer<typeof openTaskSchema>;
+export const openTaskListSchema = z.array(openTaskSchema);
+
+/** `POST /members/:id/remove`. Tasks not listed are left unassigned. */
+export const removeMemberRequestSchema = z.object({
+  reassign: z
+    .array(z.object({ taskId: z.string().min(1), userId: z.string().min(1) }))
+    .max(500)
+    .default([]),
+});
+
 /** `PATCH /auth/me` */
 export const updateProfileRequestSchema = z.object({
   name: z.string().trim().min(1).max(100),

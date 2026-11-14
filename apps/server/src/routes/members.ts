@@ -1,4 +1,9 @@
-import { memberListSchema, passwordResetSchema, type WorkspaceRole } from '@whiteboard/core';
+import {
+  memberListSchema,
+  passwordResetSchema,
+  removeMemberRequestSchema,
+  type WorkspaceRole,
+} from '@whiteboard/core';
 import { credentials, memberships, users, type Db } from '@whiteboard/db';
 import { and, eq, isNull } from 'drizzle-orm';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
@@ -6,7 +11,9 @@ import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { generateTemporaryPassword } from '../auth/codes';
 import { hashPassword } from '../auth/password';
 import { revokeAllSessions } from '../auth/sessions';
-import { ADMIN_ROLES, authenticate, requireRole, sendError } from '../plugins/auth';
+import type { EventHub } from '../events/hub';
+import { ADMIN_ROLES, authenticate, badRequest, requireRole, sendError } from '../plugins/auth';
+import { announceHandOver, handOverTasks, openTasksOf } from '../projects/offboarding';
 
 /** Owner can manage everyone (but not themselves here); admins only members and guests. */
 export function canManage(actor: WorkspaceRole, target: WorkspaceRole): boolean {
@@ -15,7 +22,10 @@ export function canManage(actor: WorkspaceRole, target: WorkspaceRole): boolean 
   return false;
 }
 
-export const memberRoutes: FastifyPluginAsync<{ db: Db }> = async (app, { db }) => {
+export const memberRoutes: FastifyPluginAsync<{ db: Db; hub: EventHub }> = async (
+  app,
+  { db, hub },
+) => {
   const adminOnly = [authenticate(db), requireRole(ADMIN_ROLES)];
 
   function findTarget(request: FastifyRequest) {
@@ -91,23 +101,52 @@ export const memberRoutes: FastifyPluginAsync<{ db: Db }> = async (app, { db }) 
     return passwordResetSchema.parse({ temporaryPassword });
   });
 
+  /** The member's open tasks and who on each project could take them over (remove dialog). */
+  app.get('/members/:id/open-tasks', { preHandler: adminOnly }, async (request, reply) => {
+    const target = resolveManaged(request, reply);
+    return target ? openTasksOf(db, target.user.id) : undefined;
+  });
+
   /**
-   * Offboarding: soft-removes the member (history is kept) and revokes their sessions at once.
-   * Reassigning their open tasks is wired in with the tasks feature (Part 4).
+   * Offboarding, all in one transaction: hands each open task to the chosen person (or leaves it
+   * unassigned), soft-removes the member (their history is kept) and then revokes their
+   * sessions, so nothing is left half done.
    */
-  app.delete('/members/:id', { preHandler: adminOnly }, async (request, reply) => {
+  app.post('/members/:id/remove', { preHandler: adminOnly }, async (request, reply) => {
     const target = resolveManaged(request, reply);
     if (!target) return;
-    db.update(memberships)
-      .set({ removedAt: new Date(), removedBy: request.auth!.user.id })
-      .where(
-        and(
-          eq(memberships.userId, target.user.id),
-          eq(memberships.workspaceId, request.auth!.workspaceId),
-        ),
-      )
-      .run();
+    const parsed = removeMemberRequestSchema.safeParse(request.body ?? {});
+    if (!parsed.success) return badRequest(reply);
+    // Each choice must be one of the member's open tasks and someone on that task's project.
+    const open = new Map(openTasksOf(db, target.user.id).map((t) => [t.taskId, t]));
+    const reassign = new Map<string, string>();
+    for (const { taskId, userId } of parsed.data.reassign) {
+      if (!open.get(taskId)?.candidates.some((c) => c.userId === userId)) {
+        return badRequest(reply, 'Pick someone on that project to take the task over');
+      }
+      reassign.set(taskId, userId);
+    }
+    const actorId = request.auth!.user.id;
+    const touched = db.transaction((tx) => {
+      const handed = handOverTasks(tx, hub, {
+        userId: target.user.id,
+        actorId,
+        reassign,
+        auto: false,
+      });
+      tx.update(memberships)
+        .set({ removedAt: new Date(), removedBy: actorId })
+        .where(
+          and(
+            eq(memberships.userId, target.user.id),
+            eq(memberships.workspaceId, request.auth!.workspaceId),
+          ),
+        )
+        .run();
+      return handed;
+    });
     revokeAllSessions(db, target.user.id);
+    announceHandOver(db, hub, touched);
     return reply.code(204).send();
   });
 };

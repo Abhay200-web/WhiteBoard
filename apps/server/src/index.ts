@@ -8,6 +8,7 @@ import { buildApp } from './app';
 import { createBackup, getBackupDir } from './backups/backup';
 import { loadConfig } from './config';
 import { announceHost } from './discovery';
+import { EventHub } from './events/hub';
 import { backupJob } from './jobs/backup';
 import { guestExpiryJob } from './jobs/guest-expiry';
 import { startScheduler } from './scheduler';
@@ -28,13 +29,15 @@ if ((pendingMigrationCount(db) ?? 0) > 0) {
 }
 migrateDatabase(db);
 
-const app = buildApp({ db, dataDir: config.dataDir, logger: true });
+// One hub for the routes and the scheduled jobs, so both can reach the people who are connected.
+const hub = new EventHub();
+const app = buildApp({ db, dataDir: config.dataDir, logger: true, hub });
 
 await app.listen({ host: config.host, port: config.port });
 
 const stopScheduler = startScheduler(
   db,
-  [guestExpiryJob, backupJob(config.dataDir, SERVER_VERSION)],
+  [guestExpiryJob(hub), backupJob(config.dataDir, SERVER_VERSION)],
   {
     onError: (err) => app.log.error(err, 'scheduler failed'),
   },

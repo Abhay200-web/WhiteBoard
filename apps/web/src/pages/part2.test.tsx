@@ -236,13 +236,26 @@ describe('members page', () => {
     expect(await screen.findByText('ABCD-EFGH-JKMN-PQRS')).toBeInTheDocument();
   });
 
-  it('removes a member after confirmation, and Escape cancels', async () => {
+  it('removes a member after confirmation, handing their open task over, and Escape cancels', async () => {
     mockHost({}, OWNER);
     let members = [OWNER_MEMBER, MIA];
+    let sent: unknown = null;
     server.use(
       http.get('*/members', () => HttpResponse.json(members)),
       http.get('*/invites', () => HttpResponse.json([])),
-      http.delete('*/members/u2', () => {
+      http.get('*/members/u2/open-tasks', () =>
+        HttpResponse.json([
+          {
+            taskId: 't1',
+            title: 'Logo concepts',
+            projectId: 'p1',
+            projectName: 'Logo for Client X',
+            candidates: [{ userId: 'u1', name: 'Owner' }],
+          },
+        ]),
+      ),
+      http.post('*/members/u2/remove', async ({ request }) => {
+        sent = await request.json();
         members = [OWNER_MEMBER];
         return new HttpResponse(null, { status: 204 });
       }),
@@ -257,10 +270,13 @@ describe('members page', () => {
     expect(screen.getByText('mia@studio.test')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Remove Mia' }));
-    await user.click(
-      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Remove member' }),
-    );
+    const dialog = await screen.findByRole('dialog');
+    const handTo = await within(dialog).findByLabelText('Give Logo concepts to');
+    expect(handTo).toHaveValue(''); // "Leave unassigned" unless chosen
+    await user.selectOptions(handTo, 'Owner');
+    await user.click(within(dialog).getByRole('button', { name: 'Remove member' }));
     await waitFor(() => expect(screen.queryByText('mia@studio.test')).not.toBeInTheDocument());
+    expect(sent).toEqual({ reassign: [{ taskId: 't1', userId: 'u1' }] });
   });
 
   it('lists pending invites and revokes one', async () => {
