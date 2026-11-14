@@ -21,14 +21,16 @@ import {
   projectFiles,
   projectMembers,
   projects,
+  taskAssignees,
+  tasks,
   taskStatuses,
   users,
   type Db,
 } from '@whiteboard/db';
-import { and, asc, eq, gt, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 
-import { authenticate, requireRole, sendError, ALL_ROLES } from '../plugins/auth';
+import { authenticate, badRequest, requireRole, sendError, ALL_ROLES } from '../plugins/auth';
 import { canManageProject, canViewProject, isAdmin, projectRole } from '../projects/access';
 import { canAccessFile } from './files';
 
@@ -106,10 +108,6 @@ export const projectRoutes: FastifyPluginAsync<{ db: Db }> = async (app, { db })
       return null;
     }
     return row;
-  }
-
-  function badRequest(reply: FastifyReply, message?: string) {
-    return sendError(reply, 400, 'invalid_request', message ?? 'Invalid request');
   }
 
   // --- projects ---------------------------------------------------------------------------
@@ -305,9 +303,20 @@ export const projectRoutes: FastifyPluginAsync<{ db: Db }> = async (app, { db })
         return badRequest(reply, 'A project needs at least one manager');
       }
     }
-    db.delete(projectMembers)
-      .where(and(eq(projectMembers.projectId, row.id), eq(projectMembers.userId, userId)))
-      .run();
+    db.transaction((tx) => {
+      tx.delete(projectMembers)
+        .where(and(eq(projectMembers.projectId, row.id), eq(projectMembers.userId, userId)))
+        .run();
+      // They leave the project's tasks too, so no task stays assigned to a non-member.
+      // (Part 4.8 adds choosing who takes those tasks over.)
+      const projectTasks = tx
+        .select({ id: tasks.id })
+        .from(tasks)
+        .where(eq(tasks.projectId, row.id));
+      tx.delete(taskAssignees)
+        .where(and(eq(taskAssignees.userId, userId), inArray(taskAssignees.taskId, projectTasks)))
+        .run();
+    });
     return reply.code(204).send();
   });
 

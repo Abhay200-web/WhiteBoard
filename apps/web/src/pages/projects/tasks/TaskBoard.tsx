@@ -1,11 +1,8 @@
-import { canMoveTask, type Task, type TaskStatus } from '@whiteboard/core';
+import { canMoveTask, SORT_STEP as STEP, type Task, type TaskStatus } from '@whiteboard/core';
 import { cn } from '@whiteboard/ui';
 import { useState, type DragEvent } from 'react';
 
 import { TaskMeta } from './TaskMeta';
-
-/** Gap between sort keys, as on the Host, so a card can later go between two others. */
-const STEP = 1000;
 
 const bySortKey = (a: Task, b: Task) => a.sortKey - b.sortKey;
 

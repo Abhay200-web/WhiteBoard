@@ -7,6 +7,7 @@ import {
   createSubtaskRequestSchema,
   createTaskRequestSchema,
   setAssigneesRequestSchema,
+  SORT_STEP,
   subtaskListSchema,
   taskListSchema,
   taskSchema,
@@ -30,16 +31,13 @@ import {
 import { and, asc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 
-import { authenticate, requireRole, sendError, ALL_ROLES } from '../plugins/auth';
+import { authenticate, badRequest, requireRole, sendError, ALL_ROLES } from '../plugins/auth';
 import { canManageProject, canViewProject } from '../projects/access';
 import { canAccessFile } from './files';
 
 type TaskRow = typeof tasks.$inferSelect;
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 type Need = 'view' | 'manage';
-
-/** Gap between sort keys, so a card can later be dropped between two others. */
-const STEP = 1000;
 
 export const taskRoutes: FastifyPluginAsync<{ db: Db }> = async (app, { db }) => {
   const signedIn = [authenticate(db), requireRole(ALL_ROLES)];
@@ -130,10 +128,6 @@ export const taskRoutes: FastifyPluginAsync<{ db: Db }> = async (app, { db }) =>
     return found.length === unique.length;
   }
 
-  function badRequest(reply: FastifyReply, message?: string) {
-    return sendError(reply, 400, 'invalid_request', message ?? 'Invalid request');
-  }
-
   const NOT_MEMBERS = 'Tasks can only be assigned to people on this project';
   const refuseMove = (reply: FastifyReply, statusName: string) =>
     sendError(reply, 403, 'forbidden', `You cannot move this task to ${statusName}`);
@@ -149,14 +143,14 @@ export const taskRoutes: FastifyPluginAsync<{ db: Db }> = async (app, { db }) =>
 
   /** New cards and checklist items go to the end of their list. */
   const nextTaskKey = (statusId: string) =>
-    STEP +
+    SORT_STEP +
     (db
       .select({ max: sql<number | null>`max(${tasks.sortKey})` })
       .from(tasks)
       .where(eq(tasks.statusId, statusId))
       .get()?.max ?? 0);
   const nextSubtaskKey = (taskId: string) =>
-    STEP +
+    SORT_STEP +
     (db
       .select({ max: sql<number | null>`max(${subtasks.sortKey})` })
       .from(subtasks)
@@ -190,8 +184,17 @@ export const taskRoutes: FastifyPluginAsync<{ db: Db }> = async (app, { db }) =>
       .where(inArray(taskFiles.taskId, ids))
       .groupBy(taskFiles.taskId)
       .all();
+    // Group once so each task is a lookup, not a scan of every row.
+    const assigneesOf = new Map<string, { userId: string; name: string }[]>();
+    for (const { taskId, userId, name } of people) {
+      const list = assigneesOf.get(taskId) ?? [];
+      list.push({ userId, name });
+      assigneesOf.set(taskId, list);
+    }
+    const countsOf = new Map(checklist.map((c) => [c.taskId, c]));
+    const filesOf = new Map(attached.map((a) => [a.taskId, a.count]));
     return rows.map((row) => {
-      const counts = checklist.find((c) => c.taskId === row.id);
+      const counts = countsOf.get(row.id);
       return taskSchema.parse({
         id: row.id,
         projectId: row.projectId,
@@ -205,11 +208,9 @@ export const taskRoutes: FastifyPluginAsync<{ db: Db }> = async (app, { db }) =>
         createdBy: row.createdBy,
         createdAt: row.createdAt.getTime(),
         updatedAt: row.updatedAt.getTime(),
-        assignees: people
-          .filter((p) => p.taskId === row.id)
-          .map(({ userId, name }) => ({ userId, name })),
+        assignees: assigneesOf.get(row.id) ?? [],
         subtaskCounts: { done: Number(counts?.done ?? 0), total: counts?.total ?? 0 },
-        fileCount: attached.find((a) => a.taskId === row.id)?.count ?? 0,
+        fileCount: filesOf.get(row.id) ?? 0,
       });
     });
   }
@@ -336,21 +337,50 @@ export const taskRoutes: FastifyPluginAsync<{ db: Db }> = async (app, { db }) =>
       sortKey ??= nextTaskKey(to.id);
     }
 
-    db.update(tasks)
-      .set({
-        ...(b.title !== undefined && { title: b.title }),
-        ...(b.description !== undefined && { description: b.description }),
-        ...(b.priority !== undefined && { priority: b.priority }),
-        ...(b.startAt !== undefined && { startAt: b.startAt != null ? new Date(b.startAt) : null }),
-        ...(b.dueAt !== undefined && { dueAt: b.dueAt != null ? new Date(b.dueAt) : null }),
-        ...(b.statusId !== undefined && { statusId: b.statusId }),
-        ...(sortKey !== undefined && { sortKey }),
-        updatedAt: new Date(),
-      })
-      .where(eq(tasks.id, task.id))
-      .run();
+    db.transaction((tx) => {
+      tx.update(tasks)
+        .set({
+          ...(b.title !== undefined && { title: b.title }),
+          ...(b.description !== undefined && { description: b.description }),
+          ...(b.priority !== undefined && { priority: b.priority }),
+          ...(b.startAt !== undefined && {
+            startAt: b.startAt != null ? new Date(b.startAt) : null,
+          }),
+          ...(b.dueAt !== undefined && { dueAt: b.dueAt != null ? new Date(b.dueAt) : null }),
+          ...(b.statusId !== undefined && { statusId: b.statusId }),
+          ...(sortKey !== undefined && { sortKey }),
+          updatedAt: new Date(),
+        })
+        .where(eq(tasks.id, task.id))
+        .run();
+      if (b.sortKey !== undefined)
+        spreadIfTied(tx, b.statusId ?? task.statusId, task.id, b.sortKey);
+    });
     return reload(task.id);
   });
+
+  /**
+   * A dropped card can get the same sort key as a neighbour once no gap is left between them.
+   * Then renumber the column with fresh gaps, keeping the moved card just after the one it tied
+   * with (the web puts a card before its target by taking the floor of the midpoint).
+   */
+  function spreadIfTied(tx: Tx, statusId: string, movedId: string, sortKey: number) {
+    const column = tx
+      .select({ id: tasks.id, sortKey: tasks.sortKey })
+      .from(tasks)
+      .where(eq(tasks.statusId, statusId))
+      .all();
+    if (!column.some((t) => t.id !== movedId && t.sortKey === sortKey)) return;
+    column.sort(
+      (a, b) => a.sortKey - b.sortKey || Number(a.id === movedId) - Number(b.id === movedId),
+    );
+    column.forEach((t, i) => {
+      tx.update(tasks)
+        .set({ sortKey: (i + 1) * SORT_STEP })
+        .where(eq(tasks.id, t.id))
+        .run();
+    });
+  }
 
   /** Deletes the task with its assignees, subtasks and attachments (the files stay on the Host). */
   app.delete('/tasks/:id', { preHandler: signedIn }, async (request, reply) => {

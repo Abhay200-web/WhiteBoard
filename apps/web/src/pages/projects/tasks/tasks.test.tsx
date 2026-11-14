@@ -1,8 +1,8 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { SessionUser, Task, TaskStatus } from '@whiteboard/core';
-import { http, HttpResponse } from 'msw';
-import { describe, expect, it } from 'vitest';
+import { delay, http, HttpResponse } from 'msw';
+import { describe, expect, it, vi } from 'vitest';
 
 import { mockHost, OWNER, renderApp } from '../../../test/render';
 import { server } from '../../../test/setup';
@@ -240,6 +240,27 @@ describe('task board', () => {
     expect(cardsIn('To do')).toEqual(['Logo concepts']);
     expect(cardsIn('Done')).toEqual([]);
   });
+
+  it('keeps an accepted move when an earlier, slower one is refused', async () => {
+    mockHost({}, MIA);
+    mockProject('manager', [
+      task({ id: 't1', title: 'Wordmark', sortKey: 1000 }),
+      task({ id: 't2', title: 'Icon', sortKey: 2000 }),
+    ]);
+    server.use(
+      http.patch('*/tasks/t1', async () => {
+        await delay(50);
+        return HttpResponse.json({ error: 'forbidden', message: 'Refused' }, { status: 403 });
+      }),
+    );
+    await openBoard();
+    dragCard('Wordmark', column('Done'));
+    dragCard('Icon', column('In progress'));
+    // Wordmark's refused move goes back; Icon's accepted move stays.
+    await waitFor(() => expect(cardsIn('To do')).toEqual(['Wordmark']));
+    expect(cardsIn('Done')).toEqual([]);
+    expect(cardsIn('In progress')).toEqual(['Icon']);
+  });
 });
 
 describe('task drawer', () => {
@@ -333,5 +354,101 @@ describe('task drawer', () => {
     await user.selectOptions(status, 'Done');
     expect(await within(panel).findByText('You cannot move this task to Done')).toBeInTheDocument();
     await waitFor(() => expect(status).toHaveValue('s-todo'));
+  });
+});
+
+describe('task drawer: closing and refused edits', () => {
+  async function openDrawer(tasks: Task[] = [task()]) {
+    mockHost({}, MIA);
+    const sent = mockProject('manager', tasks);
+    const user = userEvent.setup();
+    renderApp('/projects/p1', 'tok');
+    await user.click(await screen.findByRole('button', { name: tasks[0]!.title }));
+    return { sent, user, panel: await drawer() };
+  }
+
+  it('saves the title and description still being typed when Escape closes the drawer', async () => {
+    const { sent, user, panel } = await openDrawer();
+    await user.click(within(panel).getByRole('textbox', { name: 'Description' }));
+    await user.keyboard('Three logo ideas');
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(JSON.stringify(sent[0]!.body)).toContain('Three logo ideas');
+
+    await user.click(screen.getByRole('button', { name: 'Logo concepts' }));
+    const again = await drawer();
+    const title = within(again).getByLabelText('Title');
+    await user.clear(title);
+    await user.type(title, 'Logo concepts v2{Escape}');
+    await waitFor(() => expect(sent).toHaveLength(2));
+    expect(sent[1]!.body).toEqual({ title: 'Logo concepts v2' });
+  });
+
+  it('closes only a file preview, not the drawer under it, on Escape', async () => {
+    URL.createObjectURL = vi.fn(() => 'blob:test');
+    URL.revokeObjectURL = vi.fn();
+    const { user, panel } = await openDrawer();
+    server.use(
+      http.get(
+        '*/files/f1/content',
+        () => new HttpResponse('img', { headers: { 'content-type': 'image/png' } }),
+      ),
+    );
+    // Attach a file by mocking the list the drawer shows.
+    server.use(
+      http.get('*/tasks/:id/files', () =>
+        HttpResponse.json([
+          {
+            fileId: 'f1',
+            addedBy: 'u2',
+            addedAt: 1,
+            name: 'ref.png',
+            mimeType: 'image/png',
+            size: 2048,
+            hasThumbnail: false,
+          },
+        ]),
+      ),
+    );
+    await user.keyboard('{Escape}');
+    await user.click(screen.getByRole('button', { name: 'Logo concepts' }));
+    await user.click(await within(await drawer()).findByRole('button', { name: 'ref.png' }));
+    expect(await screen.findAllByRole('dialog')).toHaveLength(2);
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.getAllByRole('dialog')).toHaveLength(1));
+    expect(screen.getByRole('dialog', { name: 'Logo concepts' })).toBeInTheDocument();
+    expect(panel).not.toBeInTheDocument(); // the first drawer was closed and reopened
+  });
+
+  it('does not re-save an untouched due date, and clears it when emptied', async () => {
+    const due = new Date('2027-03-01T10:30:45').getTime(); // seconds the field cannot show
+    const { sent, user, panel } = await openDrawer([task({ dueAt: due })]);
+    const field = within(panel).getByLabelText('Due');
+    await user.click(field);
+    await user.tab();
+    expect(sent).toEqual([]);
+    await user.clear(field);
+    await user.tab();
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]!.body).toEqual({ dueAt: null });
+  });
+
+  it('shows the saved title again when the Host refuses a new one', async () => {
+    const { user, panel } = await openDrawer();
+    server.use(
+      http.patch('*/tasks/:id', () =>
+        HttpResponse.json(
+          { error: 'invalid_request', message: 'Title is too long' },
+          { status: 400 },
+        ),
+      ),
+    );
+    const title = within(panel).getByLabelText('Title');
+    await user.clear(title);
+    await user.type(title, 'A rejected title');
+    await user.tab();
+    expect(await within(panel).findByText('Title is too long')).toBeInTheDocument();
+    expect(title).toHaveValue('Logo concepts');
   });
 });

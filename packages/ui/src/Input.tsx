@@ -1,8 +1,9 @@
-import type { InputHTMLAttributes } from 'react';
+import type { ComponentProps } from 'react';
 
 import { cn } from './cn';
 
-export function Input({ className, ...rest }: InputHTMLAttributes<HTMLInputElement>) {
+/** Text input. Takes every `<input>` prop, including `ref` (React 19 passes it as a prop). */
+export function Input({ className, ...rest }: ComponentProps<'input'>) {
   return (
     <input
       className={cn(

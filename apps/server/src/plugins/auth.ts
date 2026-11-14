@@ -24,6 +24,11 @@ export function sendError(reply: FastifyReply, status: number, error: string, me
   return reply.code(status).send(body);
 }
 
+/** 400 with the first validation message, or a generic one. */
+export function badRequest(reply: FastifyReply, message?: string) {
+  return sendError(reply, 400, 'invalid_request', message ?? 'Invalid request');
+}
+
 /** Pre-handler: requires a valid bearer session and attaches `request.auth`. */
 export function authenticate(db: Db): preHandlerAsyncHookHandler {
   return async (request, reply) => {

@@ -38,7 +38,10 @@ type TaskPatch = Partial<
   Pick<Task, 'title' | 'description' | 'priority' | 'dueAt' | 'statusId' | 'sortKey'>
 >;
 
-/** `PATCH /tasks/:id`, shown at once; the list rolls back if the Host refuses the change. */
+/**
+ * `PATCH /tasks/:id`, shown at once. If the Host refuses, only the fields this change touched
+ * on this task go back, so other changes made meanwhile (another card dragged) are kept.
+ */
 export function useUpdateTask(projectId: string) {
   const queryClient = useQueryClient();
   const key = tasksKey(projectId);
@@ -47,11 +50,21 @@ export function useUpdateTask(projectId: string) {
       api(`/tasks/${id}`, { method: 'PATCH', body: patch, schema: taskSchema }),
     onMutate: async ({ id, ...patch }) => {
       await queryClient.cancelQueries({ queryKey: key });
-      const before = queryClient.getQueryData<Task[]>(key);
+      const before = queryClient.getQueryData<Task[]>(key)?.find((t) => t.id === id);
       patchTask(queryClient, projectId, id, patch);
-      return { before };
+      const undo =
+        before && Object.fromEntries(Object.keys(patch).map((k) => [k, before[k as keyof Task]]));
+      return { undo: undo as Partial<Task> | undefined };
     },
-    onSuccess: (task) => patchTask(queryClient, projectId, task.id, task),
-    onError: (_error, _patch, context) => queryClient.setQueryData(key, context?.before),
+    onSuccess: (task, { sortKey }) => {
+      patchTask(queryClient, projectId, task.id, task);
+      // The Host renumbered the column (a drop left no gap): fetch everyone's new positions.
+      if (sortKey !== undefined && task.sortKey !== sortKey) {
+        void queryClient.invalidateQueries({ queryKey: key });
+      }
+    },
+    onError: (_error, { id }, context) => {
+      if (context?.undo) patchTask(queryClient, projectId, id, context.undo);
+    },
   });
 }
