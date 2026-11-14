@@ -9,7 +9,7 @@ import { ALL_ROLES, authenticate, badRequest, requireRole, sendError } from '../
 import type { EventHub } from '../events/hub';
 import { canManageProject } from '../projects/access';
 import { recordHistory } from '../projects/history';
-import { excerpt, notify, taskAudience } from '../projects/notify';
+import { announceTaskChange, excerpt, notify, taskAudience } from '../projects/notify';
 import { taskAccess } from '../projects/taskAccess';
 
 /**
@@ -22,6 +22,9 @@ export const activityRoutes: FastifyPluginAsync<{ db: Db; hub: EventHub }> = asy
 ) => {
   const signedIn = [authenticate(db), requireRole(ALL_ROLES)];
   const { allowed, paramId, loadTask, currentProjectMembers } = taskAccess(db);
+  /** After a change is saved: open apps showing this task reload its comments and history. */
+  const changed = (projectId: string, taskId: string) =>
+    announceTaskChange(db, hub, projectId, taskId);
 
   /** People @-mentioned are told so; the task's other people hear there is a new comment. */
   function tellAbout(
@@ -109,6 +112,7 @@ export const activityRoutes: FastifyPluginAsync<{ db: Db; hub: EventHub }> = asy
       recordHistory(tx, task.id, authorId, { event: 'comment' });
       tellAbout(tx, { taskId: task.id, projectId: task.projectId, authorId, body }, mentions, true);
     });
+    changed(task.projectId, task.id);
     return reply.code(201).send(listComments(task.id));
   });
 
@@ -132,6 +136,7 @@ export const activityRoutes: FastifyPluginAsync<{ db: Db; hub: EventHub }> = asy
         .run();
       tellAbout(tx, { ...comment, projectId, body }, newlyMentioned, false);
     });
+    changed(projectId, comment.taskId);
     return listComments(comment.taskId);
   });
 
@@ -143,6 +148,7 @@ export const activityRoutes: FastifyPluginAsync<{ db: Db; hub: EventHub }> = asy
       return sendError(reply, 403, 'forbidden', 'Only the author or a manager can delete it');
     }
     db.delete(comments).where(eq(comments.id, found.comment.id)).run();
+    changed(found.projectId, found.comment.taskId);
     return reply.code(204).send();
   });
 

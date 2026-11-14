@@ -47,6 +47,15 @@ export function notify(
   hub.send(recipients, { type: 'notification' });
 }
 
+/**
+ * Tells every open app that may see the project that one of its tasks changed, so boards,
+ * lists and drawers reload it. Call it after the change is saved. Ids only, no content.
+ */
+export function announceTaskChange(db: Db, hub: EventHub, projectId: string, taskId: string) {
+  const viewers = projectViewers(db, projectId, hub.connectedUsers());
+  hub.send(viewers, { type: 'task.changed', projectId, taskId });
+}
+
 /** Who hears about a task's comments and moves: whoever created it and whoever works on it. */
 export function taskAudience(db: Db | DbTx, taskId: string): string[] {
   const task = db

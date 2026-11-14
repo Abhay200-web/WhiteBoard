@@ -23,6 +23,11 @@ export class EventHub {
     });
   }
 
+  /** Everyone with the app open right now. */
+  connectedUsers(): string[] {
+    return [...this.sockets.keys()];
+  }
+
   /** Sends to every open window of these people; anyone offline sees it on their next visit. */
   send(userIds: Iterable<string>, event: ServerEvent): void {
     const message = JSON.stringify(event);

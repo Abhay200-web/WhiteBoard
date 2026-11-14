@@ -41,5 +41,7 @@ export const clientEventSchema = z.object({ type: z.literal('auth'), token: z.st
 export const serverEventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('ready') }),
   z.object({ type: z.literal('notification') }),
+  /** Something about this task changed; apps showing it reload it. Ids only, no content. */
+  z.object({ type: z.literal('task.changed'), projectId: z.string(), taskId: z.string() }),
 ]);
 export type ServerEvent = z.infer<typeof serverEventSchema>;

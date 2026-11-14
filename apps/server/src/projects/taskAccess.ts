@@ -74,7 +74,9 @@ export function taskAccess(db: Db) {
         .from(tasks)
         .where(eq(tasks.id, subtask.taskId))
         .get();
-    return allowed(request, reply, task?.projectId, need, 'Subtask not found') ? subtask! : null;
+    return allowed(request, reply, task?.projectId, need, 'Subtask not found')
+      ? { ...subtask!, projectId: task!.projectId }
+      : null;
   }
 
   const isAssignee = (taskId: string, userId: string) =>
