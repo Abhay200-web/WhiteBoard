@@ -23,6 +23,7 @@ export default defineConfig({
         '/people',
         '/tasks',
         '/subtasks',
+        '/me/',
       ].map((p) => [
         p,
         {

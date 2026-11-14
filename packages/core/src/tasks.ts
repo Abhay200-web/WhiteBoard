@@ -62,6 +62,14 @@ export const taskSchema = z.object({
 export type Task = z.infer<typeof taskSchema>;
 export const taskListSchema = z.array(taskSchema);
 
+/**
+ * `GET /me/tasks` and `GET /me/review-queue`: tasks from several projects, each with the names
+ * of its project and status so a list can show them without more requests.
+ */
+export const myTaskSchema = taskSchema.extend({ projectName: z.string(), statusName: z.string() });
+export type MyTask = z.infer<typeof myTaskSchema>;
+export const myTaskListSchema = z.array(myTaskSchema);
+
 const datesInOrder = (v: { startAt?: number | null; dueAt?: number | null }) =>
   v.startAt == null || v.dueAt == null || v.dueAt >= v.startAt;
 const DATES_MESSAGE = 'The due date cannot be before the start date';
