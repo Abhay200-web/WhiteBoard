@@ -17,7 +17,7 @@ import {
   type RichTextDoc,
 } from '@whiteboard/editor';
 import { Button, Field, Input, Modal, Select } from '@whiteboard/ui';
-import { useRef, useState, type FocusEvent } from 'react';
+import { useRef, useState } from 'react';
 
 import { useAuth } from '../../../auth/AuthProvider';
 import { FormError } from '../../../components/AuthShell';
@@ -135,6 +135,8 @@ export function TaskDrawer({
   const queryClient = useQueryClient();
   const update = useUpdateTask(project.id);
   const description = useRef<RichTextDoc | null>(null);
+  const titleInput = useRef<HTMLInputElement>(null);
+  const dueInput = useRef<HTMLInputElement>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const patch = (change: Partial<Task> | null) =>
     patchTask(queryClient, project.id, task.id, change);
@@ -168,28 +170,47 @@ export function TaskDrawer({
     setAssignees.mutate([...next]);
   }
 
-  function saveDescription(event: FocusEvent<HTMLDivElement>) {
-    // Toolbar clicks move focus inside the editor box; only save when focus leaves it.
-    if (event.currentTarget.contains(event.relatedTarget) || !description.current) return;
-    update.mutate({
-      id: task.id,
-      description: isRichTextEmpty(description.current) ? null : description.current,
-    });
+  // Fields save when they lose focus, and on close (Escape or a backdrop click close the
+  // drawer without a blur). If the Host refuses, the field shows the saved value again.
+  function saveTitle() {
+    const input = titleInput.current;
+    const title = input?.value.trim();
+    if (!input || !title || title === task.title) return;
+    const saved = task.title;
+    update.mutate({ id: task.id, title }, { onError: () => (input.value = saved) });
+  }
+
+  function saveDue() {
+    const input = dueInput.current;
+    const saved = toDateTimeInput(task.dueAt);
+    // A half-typed date reads as '' (badInput): keep the saved due date rather than clear it.
+    if (!input || input.validity.badInput || input.value === saved) return;
+    const dueAt = input.value ? new Date(input.value).getTime() : null;
+    update.mutate({ id: task.id, dueAt }, { onError: () => (input.value = saved) });
+  }
+
+  function saveDescription() {
+    if (!description.current) return;
+    const doc = description.current;
     description.current = null;
+    update.mutate({ id: task.id, description: isRichTextEmpty(doc) ? null : doc });
+  }
+
+  function close() {
+    if (canManage) {
+      saveTitle();
+      saveDue();
+      saveDescription();
+    }
+    onClose();
   }
 
   return (
-    <Modal title={task.title} placement="right" size="lg" onClose={onClose}>
+    <Modal title={task.title} placement="right" size="lg" onClose={close}>
       <div className="flex flex-col gap-5">
         {canManage && (
           <Field label="Title">
-            <Input
-              defaultValue={task.title}
-              onBlur={(e) => {
-                const title = e.target.value.trim();
-                if (title && title !== task.title) update.mutate({ id: task.id, title });
-              }}
-            />
+            <Input ref={titleInput} defaultValue={task.title} onBlur={saveTitle} />
           </Field>
         )}
 
@@ -224,13 +245,11 @@ export function TaskDrawer({
           </Field>
           <Field label="Due">
             <Input
+              ref={dueInput}
               type="datetime-local"
               defaultValue={toDateTimeInput(task.dueAt)}
               disabled={!canManage}
-              onBlur={(e) => {
-                const dueAt = e.target.value ? new Date(e.target.value).getTime() : null;
-                if (dueAt !== task.dueAt) update.mutate({ id: task.id, dueAt });
-              }}
+              onBlur={saveDue}
             />
           </Field>
         </div>
@@ -257,7 +276,12 @@ export function TaskDrawer({
         <div>
           <h3 className="mb-1.5 text-sm font-medium">Description</h3>
           {canManage && (
-            <div onBlur={saveDescription}>
+            <div
+              onBlur={(e) => {
+                // Toolbar clicks move focus inside the editor box; save only when it leaves.
+                if (!e.currentTarget.contains(e.relatedTarget)) saveDescription();
+              }}
+            >
               <RichTextEditor
                 label="Description"
                 value={task.description}
@@ -304,7 +328,7 @@ export function TaskDrawer({
                 Delete task
               </Button>
             ))}
-          <Button variant="secondary" className="ml-auto" onClick={onClose}>
+          <Button variant="secondary" className="ml-auto" onClick={close}>
             Close
           </Button>
         </div>
