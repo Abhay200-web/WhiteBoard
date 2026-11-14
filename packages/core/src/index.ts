@@ -9,6 +9,7 @@ export * from './backups';
 export * from './files';
 export * from './host';
 export * from './members';
+export * from './notifications';
 export * from './projects';
 export * from './roles';
 export * from './tasks';

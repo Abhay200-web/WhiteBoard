@@ -27,6 +27,8 @@ export function mockHost(info: Partial<HostInfo> = {}, user: SessionUser | null 
         ...info,
       }),
     ),
+    // Every signed-in page shows the bell.
+    http.get('*/notifications', () => HttpResponse.json({ items: [], unread: 0 })),
     http.get('*/auth/me', () =>
       user
         ? HttpResponse.json(user)

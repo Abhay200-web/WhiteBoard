@@ -3,6 +3,8 @@ import { Button, cn } from '@whiteboard/ui';
 import { NavLink, Outlet } from 'react-router';
 
 import { useAuth } from '../auth/AuthProvider';
+import { NotificationBell } from '../components/NotificationBell';
+import { useLiveEvents } from '../lib/events';
 
 /** `who`: everyone, staff (not freelancers, who never manage a project) or admins. */
 const NAV = [
@@ -20,6 +22,7 @@ const canSee = (who: (typeof NAV)[number]['who'], role: WorkspaceRole | undefine
 /** App chrome: top bar with navigation and the signed-in user. */
 export function AppLayout() {
   const { user, signOut } = useAuth();
+  useLiveEvents(!!user);
   return (
     <div className="min-h-screen">
       <header className="border-b border-line bg-surface">
@@ -43,6 +46,7 @@ export function AppLayout() {
             ))}
           </nav>
           <div className="ml-auto flex items-center gap-3">
+            <NotificationBell />
             <span className="text-sm text-muted">{user?.name}</span>
             <Button variant="secondary" onClick={() => void signOut()}>
               Sign out
