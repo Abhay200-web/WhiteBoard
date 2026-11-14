@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { TASK_PRIORITIES, taskSchema, type ProjectDetail, type Task } from '@whiteboard/core';
 import { Button, Card, Select, Spinner } from '@whiteboard/ui';
 import { useState } from 'react';
+import { useSearchParams } from 'react-router';
 
 import { useAuth } from '../../../auth/AuthProvider';
 import { FormError } from '../../../components/AuthShell';
@@ -68,7 +69,10 @@ export function TaskList({ project, canManage }: { project: ProjectDetail; canMa
   const update = useUpdateTask(project.id);
   const [view, setView] = useState<'list' | 'board'>('list');
   const [sortBy, setSortBy] = useState<SortBy>('board');
-  const [openId, setOpenId] = useState<string | null>(null);
+  // The open task lives in the address (`?task=`), so a notification or a pasted link opens it.
+  const [params, setParams] = useSearchParams();
+  const openId = params.get('task');
+  const setOpenId = (id: string | null) => setParams(id ? { task: id } : {}, { replace: true });
   const open = tasks.data?.find((t) => t.id === openId);
 
   return (

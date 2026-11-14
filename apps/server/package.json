@@ -21,6 +21,7 @@
     "@fastify/cors": "^11.4.1",
     "@fastify/multipart": "^10.1.8",
     "@fastify/rate-limit": "^11.2.2",
+    "@fastify/websocket": "^11.3.7",
     "@whiteboard/core": "workspace:*",
     "@whiteboard/db": "workspace:*",
     "better-sqlite3": "13.0.3",

@@ -1,5 +1,6 @@
 // SQLite schema (spec §6). Timestamps are integer ms, ids are text (ULID).
 import {
+  NOTIFICATION_KINDS,
   PROJECT_FILE_KINDS,
   PROJECT_MEMBER_ROLES,
   PROJECT_STATUSES,
@@ -316,6 +317,32 @@ export const taskHistory = sqliteTable(
     at: integer('at', { mode: 'timestamp_ms' }).notNull(),
   },
   (t) => [index('task_history_task_idx').on(t.taskId, t.at)],
+);
+
+/**
+ * The bell: one row per person told about something. Names (task, project, actor) are joined
+ * when read; `detail` keeps the status name or comment excerpt as it was then.
+ */
+export const notifications = sqliteTable(
+  'notifications',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id),
+    actorId: text('actor_id')
+      .notNull()
+      .references(() => users.id),
+    kind: text('kind', { enum: NOTIFICATION_KINDS }).notNull(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id),
+    taskId: text('task_id').references(() => tasks.id, { onDelete: 'cascade' }),
+    detail: text('detail'),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    readAt: integer('read_at', { mode: 'timestamp_ms' }),
+  },
+  (t) => [index('notifications_user_idx').on(t.userId, t.createdAt)],
 );
 
 /** Last run of each scheduled job, so missed runs are caught up after Host downtime. */

@@ -32,13 +32,18 @@ import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 
 import { authenticate, badRequest, requireRole, sendError, ALL_ROLES } from '../plugins/auth';
 import { canManageProject, canViewProject, isAdmin, projectRole } from '../projects/access';
+import type { EventHub } from '../events/hub';
+import { notify } from '../projects/notify';
 import { canAccessFile } from './files';
 
 type ProjectRow = typeof projects.$inferSelect;
 
 const STAFF_ROLES = ['owner', 'admin', 'member'] as const;
 
-export const projectRoutes: FastifyPluginAsync<{ db: Db }> = async (app, { db }) => {
+export const projectRoutes: FastifyPluginAsync<{ db: Db; hub: EventHub }> = async (
+  app,
+  { db, hub },
+) => {
   const signedIn = [authenticate(db), requireRole(ALL_ROLES)];
 
   function summary(row: ProjectRow, userId: string) {
@@ -283,7 +288,15 @@ export const projectRoutes: FastifyPluginAsync<{ db: Db }> = async (app, { db })
     if (projectRole(db, row.id, userId)) {
       return sendError(reply, 409, 'already_member', 'They are already on this project');
     }
-    db.insert(projectMembers).values({ projectId: row.id, userId, role }).run();
+    db.transaction((tx) => {
+      tx.insert(projectMembers).values({ projectId: row.id, userId, role }).run();
+      notify(tx, hub, {
+        to: [userId],
+        actorId: request.auth!.user.id,
+        kind: 'added_to_project',
+        projectId: row.id,
+      });
+    });
     return reply.code(201).send(detail(row, request.auth!.user.id));
   });
 
