@@ -21,6 +21,8 @@ function describe(n: Notification): string {
       return `${n.actorName} moved ${task} to ${n.detail}`;
     case 'added_to_project':
       return `${n.actorName} added you to ${n.projectName}`;
+    case 'access_ended':
+      return `${n.actorName}'s access ended: ${task} is now unassigned`;
   }
 }
 

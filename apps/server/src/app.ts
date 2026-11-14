@@ -26,6 +26,11 @@ export interface AppOptions {
   logger?: boolean;
   /** Limit for sign-in / setup / change-password, per client IP. Tests lower it. */
   authRateLimit?: RateLimitOptions;
+  /**
+   * Who is connected, so a change can ping the people it concerns. One per Host; pass it in when
+   * something outside the routes (the scheduled jobs) must reach the same people.
+   */
+  hub?: EventHub;
 }
 
 export function buildApp({
@@ -33,6 +38,7 @@ export function buildApp({
   dataDir,
   logger = false,
   authRateLimit = { max: 10, timeWindow: '1 minute' },
+  hub = new EventHub(),
 }: AppOptions): FastifyInstance {
   const app = Fastify({ logger });
   // The web UI runs on another origin (desktop app / dev server). Auth is a bearer header, not
@@ -49,11 +55,9 @@ export function buildApp({
   app.register(setupRoutes, { db, rateLimit: authRateLimit });
   app.register(authRoutes, { db, rateLimit: authRateLimit });
   app.register(inviteRoutes, { db, rateLimit: authRateLimit });
-  app.register(memberRoutes, { db });
+  app.register(memberRoutes, { db, hub });
   app.register(fileRoutes, { db, dataDir });
   app.register(backupRoutes, { db, dataDir });
-  // One hub per Host: who is connected, so a change can ping the people it concerns.
-  const hub = new EventHub();
   app.register(websocket);
   app.register(eventRoutes, { db, hub });
   app.register(notificationRoutes, { db });

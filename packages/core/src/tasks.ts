@@ -184,6 +184,16 @@ export const taskEventSchema = z.discriminatedUnion('event', [
   }),
   z.object({ event: z.literal('file'), name: z.string(), added: z.boolean() }),
   z.object({ event: z.literal('comment') }),
+  /**
+   * The assignee `name` left the workspace. `to`: who took the task over (null: unassigned).
+   * `auto`: their freelancer access ran out (the actor is then the person who left).
+   */
+  z.object({
+    event: z.literal('left'),
+    name: z.string(),
+    to: z.string().nullable(),
+    auto: z.boolean(),
+  }),
 ]);
 export type TaskEvent = z.infer<typeof taskEventSchema>;
 
