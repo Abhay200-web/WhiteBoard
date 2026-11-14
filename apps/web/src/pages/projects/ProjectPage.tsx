@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   PROJECT_STATUS_FLOW,
   projectDetailSchema,
@@ -18,6 +18,7 @@ import { formatDate, ROLE_LABEL, STATUS_ACTION, STATUS_LABEL } from './format';
 import { ProjectFilesCard } from './ProjectFilesCard';
 import { ProjectMembersCard } from './ProjectMembersCard';
 import { TaskList } from './tasks/TaskList';
+import { canManageProject, useProject } from './useProject';
 
 function StatusControls({ project }: { project: ProjectDetail }) {
   const queryClient = useQueryClient();
@@ -57,11 +58,7 @@ export function ProjectPage() {
   const { id = '' } = useParams();
   const { user } = useAuth();
   const [editing, setEditing] = useState(false);
-  const project = useQuery({
-    queryKey: ['project', id],
-    queryFn: () => api(`/projects/${id}`, { schema: projectDetailSchema }),
-    retry: false,
-  });
+  const project = useProject(id);
 
   if (project.isPending) return <Spinner />;
   if (project.isError || !project.data) {
@@ -84,8 +81,7 @@ export function ProjectPage() {
   }
 
   const p = project.data;
-  const isAdmin = user?.role === 'owner' || user?.role === 'admin';
-  const canManage = isAdmin || p.myRole === 'manager';
+  const canManage = canManageProject(user, p);
 
   return (
     <div className="flex max-w-3xl flex-col gap-6">

@@ -6,6 +6,7 @@ import {
   canMoveTask,
   createSubtaskRequestSchema,
   createTaskRequestSchema,
+  myTaskListSchema,
   setAssigneesRequestSchema,
   SORT_STEP,
   subtaskListSchema,
@@ -28,11 +29,11 @@ import {
   users,
   type Db,
 } from '@whiteboard/db';
-import { and, asc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNull, ne, notInArray, or, sql, type SQL } from 'drizzle-orm';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 
 import { authenticate, badRequest, requireRole, sendError, ALL_ROLES } from '../plugins/auth';
-import { canManageProject, canViewProject } from '../projects/access';
+import { canManageProject, canViewProject, isAdmin } from '../projects/access';
 import { canAccessFile } from './files';
 
 type TaskRow = typeof tasks.$inferSelect;
@@ -259,6 +260,53 @@ export const taskRoutes: FastifyPluginAsync<{ db: Db }> = async (app, { db }) =>
       .orderBy(asc(taskStatuses.sortKey), asc(tasks.sortKey))
       .all();
     return taskListSchema.parse(serialize(rows.map((r) => r.task)));
+  });
+
+  // --- across projects ("My tasks", review queue) ------------------------------------------
+
+  /** Tasks matching `where` in projects that are not archived, with project and status names. */
+  function listAcrossProjects(where: SQL | undefined) {
+    const rows = db
+      .select({ task: tasks, projectName: projects.name, statusName: taskStatuses.name })
+      .from(tasks)
+      .innerJoin(projects, eq(projects.id, tasks.projectId))
+      .innerJoin(taskStatuses, eq(taskStatuses.id, tasks.statusId))
+      .where(and(ne(projects.status, 'archived'), where))
+      .orderBy(asc(tasks.createdAt))
+      .all();
+    return myTaskListSchema.parse(
+      serialize(rows.map((r) => r.task)).map((task, i) => ({
+        ...task,
+        projectName: rows[i]!.projectName,
+        statusName: rows[i]!.statusName,
+      })),
+    );
+  }
+
+  /** My open work everywhere: assigned to me, not approved or done. The web groups it by date. */
+  app.get('/me/tasks', { preHandler: signedIn }, async (request) => {
+    const mine = db
+      .select({ id: taskAssignees.taskId })
+      .from(taskAssignees)
+      .where(eq(taskAssignees.userId, request.auth!.user.id));
+    return listAcrossProjects(
+      and(inArray(tasks.id, mine), notInArray(taskStatuses.kind, ['approved', 'done'])),
+    );
+  });
+
+  /** Tasks waiting for review in the projects I manage (admins: all). Artists get an empty list. */
+  app.get('/me/review-queue', { preHandler: signedIn }, async (request) => {
+    const auth = request.auth!;
+    const managed = db
+      .select({ id: projectMembers.projectId })
+      .from(projectMembers)
+      .where(and(eq(projectMembers.userId, auth.user.id), eq(projectMembers.role, 'manager')));
+    return listAcrossProjects(
+      and(
+        eq(taskStatuses.kind, 'review'),
+        isAdmin(auth) ? undefined : inArray(tasks.projectId, managed),
+      ),
+    );
   });
 
   app.post('/projects/:id/tasks', { preHandler: signedIn }, async (request, reply) => {

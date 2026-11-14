@@ -8,6 +8,7 @@ import { ConnectPage } from './pages/ConnectPage';
 import { JoinPage } from './pages/JoinPage';
 import { LoginPage } from './pages/LoginPage';
 import { MembersPage } from './pages/members/MembersPage';
+import { TaskInbox } from './pages/my-tasks/TaskInbox';
 import { HomePage, NotFoundPage } from './pages/misc';
 import { NewProjectPage } from './pages/projects/NewProjectPage';
 import { ProjectPage } from './pages/projects/ProjectPage';
@@ -32,6 +33,28 @@ export const routes: RouteObject[] = [
           { path: '/projects', element: <ProjectsPage /> },
           { path: '/projects/new', element: <NewProjectPage /> },
           { path: '/projects/:id', element: <ProjectPage /> },
+          {
+            path: '/my-tasks',
+            element: (
+              <TaskInbox
+                title="My tasks"
+                path="/me/tasks"
+                empty="Nothing is assigned to you right now."
+                grouped
+              />
+            ),
+          },
+          {
+            path: '/review-queue',
+            element: (
+              <TaskInbox
+                title="Review queue"
+                path="/me/review-queue"
+                empty="Nothing is waiting for your review."
+                grouped={false}
+              />
+            ),
+          },
           { element: <RequireAdmin />, children: [{ path: '/members', element: <MembersPage /> }] },
           {
             path: '/settings',

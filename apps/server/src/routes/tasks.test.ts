@@ -1,4 +1,6 @@
 import { canMoveTask } from '@whiteboard/core';
+import { tasks } from '@whiteboard/db';
+import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
@@ -331,5 +333,68 @@ describe('leaving a project and reordering', () => {
       ['C', 2000],
       ['B', 3000],
     ]);
+  });
+});
+
+describe('across projects', () => {
+  type MyTask = Task & { projectName: string; statusName: string };
+  const mine = async (who: { token: string }, url = '/me/tasks') =>
+    (await call('GET', url, who.token)).json() as MyTask[];
+
+  /** A second project run by the manager, with the artist on it. */
+  async function otherProject(name: string) {
+    const id = (await call('POST', '/projects', manager.token, { name })).json().id as string;
+    await call('POST', `/projects/${id}/members`, manager.token, {
+      userId: artist.id,
+      role: 'artist',
+    });
+    return id;
+  }
+
+  it('lists my open tasks from every project, leaving out finished ones and archived projects', async () => {
+    await createTask({ title: 'Wordmark', assigneeIds: [artist.id] });
+    const finished = await createTask({ title: 'Kick-off', assigneeIds: [artist.id] });
+    await move(finished, 'done', manager);
+    await createTask({ title: 'Not mine' });
+
+    const second = await otherProject('Packaging');
+    await call('POST', `/projects/${second}/tasks`, manager.token, {
+      title: 'Box design',
+      assigneeIds: [artist.id],
+    });
+    const archived = await otherProject('Old pitch');
+    await call('POST', `/projects/${archived}/tasks`, manager.token, {
+      title: 'Old sketch',
+      assigneeIds: [artist.id],
+    });
+    await call('POST', `/projects/${archived}/status`, manager.token, { status: 'archived' });
+
+    const list = await mine(artist);
+    expect(list.map((t) => [t.title, t.projectName, t.statusName])).toEqual([
+      ['Wordmark', 'Logo', 'To do'],
+      ['Box design', 'Packaging', 'To do'],
+    ]);
+    expect(await mine(outsider)).toEqual([]);
+    expect((await call('GET', '/me/tasks')).statusCode).toBe(401);
+  });
+
+  it('shows the review queue to the managers of the project and admins only', async () => {
+    const waiting = await createTask({ title: 'Logo v1', assigneeIds: [artist.id] });
+    await createTask({ title: 'Still to do' });
+    // Only "Submit for review" (Part 5) moves a task into review, so set it directly here.
+    host.db
+      .update(tasks)
+      .set({ statusId: statuses.review!.id })
+      .where(eq(tasks.id, waiting.id))
+      .run();
+
+    const queue = (who: { token: string }) => mine(who, '/me/review-queue');
+    expect((await queue(manager)).map((t) => t.title)).toEqual(['Logo v1']);
+    const admin = await seedUser(host.db, owner.workspaceId, 'admin');
+    expect((await queue(admin)).map((t) => t.title)).toEqual(['Logo v1']);
+    expect(await queue(artist)).toEqual([]); // assigned, but not a manager
+    const otherManager = await seedUser(host.db, owner.workspaceId, 'member');
+    await call('POST', '/projects', otherManager.token, { name: 'Theirs' });
+    expect(await queue(otherManager)).toEqual([]); // manages a different project
   });
 });
