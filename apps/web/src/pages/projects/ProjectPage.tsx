@@ -17,6 +17,7 @@ import { EditProjectDialog } from './EditProjectDialog';
 import { formatDate, ROLE_LABEL, STATUS_ACTION, STATUS_LABEL } from './format';
 import { ProjectFilesCard } from './ProjectFilesCard';
 import { ProjectMembersCard } from './ProjectMembersCard';
+import { TaskList } from './tasks/TaskList';
 
 function StatusControls({ project }: { project: ProjectDetail }) {
   const queryClient = useQueryClient();
@@ -51,7 +52,7 @@ function StatusControls({ project }: { project: ProjectDetail }) {
   );
 }
 
-/** Project overview: details, brief, people and files. (The task board arrives in Part 4.) */
+/** Project overview: details, brief, tasks, people and files. */
 export function ProjectPage() {
   const { id = '' } = useParams();
   const { user } = useAuth();
@@ -152,6 +153,7 @@ export function ProjectPage() {
         </Card>
       )}
 
+      <TaskList project={p} canManage={canManage} />
       <ProjectMembersCard project={p} canManage={canManage} />
       <ProjectFilesCard projectId={p.id} canManage={canManage} />
     </div>

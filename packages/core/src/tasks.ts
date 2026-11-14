@@ -1,9 +1,32 @@
 import { z } from 'zod';
 
-import { projectFileSchema, richTextSchema, TASK_STATUS_KINDS } from './projects';
+import {
+  projectFileSchema,
+  richTextSchema,
+  TASK_STATUS_KINDS,
+  type TaskStatusKind,
+} from './projects';
 
 export const TASK_PRIORITIES = ['low', 'medium', 'high', 'urgent'] as const;
 export type TaskPriority = (typeof TASK_PRIORITIES)[number];
+
+/** The only moves an assignee (artist) may make. Everything else needs a manager or admin. */
+const ASSIGNEE_MOVES: Partial<Record<TaskStatusKind, readonly TaskStatusKind[]>> = {
+  todo: ['doing'],
+  doing: ['todo'],
+  changes: ['doing'],
+};
+
+/**
+ * Whether a task may move between two status kinds. Nobody moves a task into review by hand:
+ * "Submit for review" (Part 5) does that, so approval always follows a real submission.
+ * The Host enforces this; the web app uses it to offer only the allowed moves.
+ */
+export function canMoveTask(from: TaskStatusKind, to: TaskStatusKind, isManager: boolean): boolean {
+  if (from === to) return true;
+  if (to === 'review') return false;
+  return isManager || (ASSIGNEE_MOVES[from]?.includes(to) ?? false);
+}
 
 /** A column of a project's task board (`GET /projects/:id/statuses`). */
 export const taskStatusSchema = z.object({
@@ -92,9 +115,12 @@ export const updateSubtaskRequestSchema = z
   .partial()
   .refine((v) => Object.keys(v).length > 0, 'Nothing to change');
 
-/** A task attachment: same shape as a project file, without the project-only `kind`. */
-export const taskFileSchema = projectFileSchema.omit({ kind: true });
-export type TaskFile = z.infer<typeof taskFileSchema>;
-export const taskFileListSchema = z.array(taskFileSchema);
+/**
+ * A file attached to a task or a project, as file lists show it: a project file without the
+ * project-only `kind`. `GET /tasks/:id/files` returns these; the web reads both lists this way.
+ */
+export const attachedFileSchema = projectFileSchema.omit({ kind: true });
+export type AttachedFile = z.infer<typeof attachedFileSchema>;
+export const attachedFileListSchema = z.array(attachedFileSchema);
 
 export const attachTaskFileRequestSchema = z.object({ fileId: z.string().min(1) });

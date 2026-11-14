@@ -55,6 +55,11 @@ const detail = (over: Record<string, unknown> = {}): ProjectDetail =>
 beforeEach(() => {
   URL.createObjectURL = vi.fn(() => 'blob:test');
   URL.revokeObjectURL = vi.fn();
+  // Project pages also show the Tasks section; its own tests live in tasks/tasks.test.tsx.
+  server.use(
+    http.get('*/projects/p1/statuses', () => HttpResponse.json([])),
+    http.get('*/projects/p1/tasks', () => HttpResponse.json([])),
+  );
 });
 
 describe('projects list', () => {
