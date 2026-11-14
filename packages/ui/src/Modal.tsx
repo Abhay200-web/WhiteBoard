@@ -1,13 +1,19 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 
+import { cn } from './cn';
+
 export interface ModalProps {
   title: string;
   onClose: () => void;
   children: ReactNode;
+  /** Width; `lg` suits longer forms. Tall content scrolls inside at any size. */
+  size?: 'md' | 'lg';
 }
 
+const SIZE = { md: 'max-w-md', lg: 'max-w-2xl' } as const;
+
 /** Accessible modal: Escape and backdrop click close it, focus moves inside on open. */
-export function Modal({ title, onClose, children }: ModalProps) {
+export function Modal({ title, onClose, children, size = 'md' }: ModalProps) {
   const titleId = useId();
   const panel = useRef<HTMLDivElement>(null);
 
@@ -37,7 +43,10 @@ export function Modal({ title, onClose, children }: ModalProps) {
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="w-full max-w-md rounded-lg border border-line bg-surface p-6 shadow-lg outline-none"
+        className={cn(
+          'max-h-[90vh] w-full overflow-y-auto rounded-lg border border-line bg-surface p-6 shadow-lg outline-none',
+          SIZE[size],
+        )}
       >
         <h2 id={titleId} className="text-lg font-semibold">
           {title}

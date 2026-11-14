@@ -107,6 +107,14 @@ test('manager creates a project with a brief and files, adds the freelancer; out
   await page.getByRole('button', { name: 'Mark as active' }).click();
   await expect(page.getByLabel('Project status')).toHaveText('Active');
 
+  // The manager edits the project details later; the brief is kept.
+  await page.getByRole('button', { name: 'Edit project' }).click();
+  await page.getByRole('dialog').getByLabel('Client (optional)').fill('Client X Ltd');
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByText('Client X Ltd')).toBeVisible();
+  await expect(page.getByText('Clean, bold wordmark')).toBeVisible();
+
   await freelancer.context.close();
   await outsider.context.close();
 });

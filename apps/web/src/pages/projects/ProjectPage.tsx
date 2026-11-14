@@ -7,11 +7,13 @@ import {
 } from '@whiteboard/core';
 import { isRichTextEmpty, RichTextView } from '@whiteboard/editor';
 import { Button, Card, Spinner } from '@whiteboard/ui';
+import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 
 import { useAuth } from '../../auth/AuthProvider';
 import { FormError } from '../../components/AuthShell';
 import { api, ApiError } from '../../lib/api';
+import { EditProjectDialog } from './EditProjectDialog';
 import { formatDate, ROLE_LABEL, STATUS_ACTION, STATUS_LABEL } from './format';
 import { ProjectFilesCard } from './ProjectFilesCard';
 import { ProjectMembersCard } from './ProjectMembersCard';
@@ -53,6 +55,7 @@ function StatusControls({ project }: { project: ProjectDetail }) {
 export function ProjectPage() {
   const { id = '' } = useParams();
   const { user } = useAuth();
+  const [editing, setEditing] = useState(false);
   const project = useQuery({
     queryKey: ['project', id],
     queryFn: () => api(`/projects/${id}`, { schema: projectDetailSchema }),
@@ -99,10 +102,14 @@ export function ProjectPage() {
           </span>
         </div>
         {canManage && (
-          <div className="mt-3">
+          <div className="mt-3 flex flex-wrap items-start justify-end gap-2">
+            <Button variant="secondary" onClick={() => setEditing(true)}>
+              Edit project
+            </Button>
             <StatusControls project={p} />
           </div>
         )}
+        {editing && <EditProjectDialog project={p} onClose={() => setEditing(false)} />}
       </div>
 
       <Card>
