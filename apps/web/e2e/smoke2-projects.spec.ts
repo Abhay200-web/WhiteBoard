@@ -134,6 +134,19 @@ test('manager creates a project with a brief and files, adds the freelancer; out
     'Logo concepts',
   );
 
+  // The manager approves it on the board by dragging the card (live updates come in 4.7).
+  await page.reload();
+  await page.getByRole('button', { name: 'Board' }).click();
+  const approved = page.getByRole('region', { name: 'Approved' });
+  // Both columns must be on screen: a drag cannot scroll the page to its target.
+  await approved.scrollIntoViewIfNeeded();
+  await page
+    .getByRole('region', { name: 'In progress' })
+    .getByRole('article')
+    .filter({ hasText: 'Logo concepts' })
+    .dragTo(approved);
+  await expect(approved).toContainText('Logo concepts');
+
   await freelancer.context.close();
   await outsider.context.close();
 });

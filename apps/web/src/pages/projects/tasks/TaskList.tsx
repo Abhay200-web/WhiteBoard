@@ -1,14 +1,16 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { TASK_PRIORITIES, taskSchema, type ProjectDetail, type Task } from '@whiteboard/core';
-import { Card, Select, Spinner } from '@whiteboard/ui';
+import { Button, Card, Select, Spinner } from '@whiteboard/ui';
 import { useState } from 'react';
 
+import { useAuth } from '../../../auth/AuthProvider';
 import { FormError } from '../../../components/AuthShell';
 import { api, errorText } from '../../../lib/api';
-import { formatDate, PRIORITY_LABEL } from '../format';
 import { AddTitleForm } from './AddTitleForm';
-import { tasksKey, useStatuses, useTasks } from './queries';
+import { tasksKey, useStatuses, useTasks, useUpdateTask } from './queries';
+import { TaskBoard } from './TaskBoard';
 import { TaskDrawer } from './TaskDrawer';
+import { TaskMeta } from './TaskMeta';
 
 type SortBy = 'board' | 'due' | 'priority';
 
@@ -41,7 +43,6 @@ function NewTask({ projectId }: { projectId: string }) {
 }
 
 function TaskRow({ task, onOpen }: { task: Task; onOpen: () => void }) {
-  const { done, total } = task.subtaskCounts;
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm">
       <button
@@ -51,24 +52,21 @@ function TaskRow({ task, onOpen }: { task: Task; onOpen: () => void }) {
       >
         {task.title}
       </button>
-      <span className="text-muted">
-        {task.assignees.map((a) => a.name).join(', ') || 'Unassigned'}
-      </span>
-      <span>{PRIORITY_LABEL[task.priority]}</span>
-      {task.dueAt !== null && <span className="text-muted">Due {formatDate(task.dueAt)}</span>}
-      {total > 0 && (
-        <span className="text-muted">
-          {done}/{total} done
-        </span>
-      )}
+      <TaskMeta task={task} />
     </li>
   );
 }
 
-/** The project's tasks, grouped by status. Managers add tasks here; anyone opens one. */
+/**
+ * The project's tasks as a list (grouped by status, sortable) or a board. Managers add tasks
+ * here; anyone opens one.
+ */
 export function TaskList({ project, canManage }: { project: ProjectDetail; canManage: boolean }) {
+  const { user } = useAuth();
   const statuses = useStatuses(project.id);
   const tasks = useTasks(project.id);
+  const update = useUpdateTask(project.id);
+  const [view, setView] = useState<'list' | 'board'>('list');
   const [sortBy, setSortBy] = useState<SortBy>('board');
   const [openId, setOpenId] = useState<string | null>(null);
   const open = tasks.data?.find((t) => t.id === openId);
@@ -77,23 +75,57 @@ export function TaskList({ project, canManage }: { project: ProjectDetail; canMa
     <Card>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-semibold">Tasks</h2>
-        <Select
-          aria-label="Sort tasks"
-          className="w-40"
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value as SortBy)}
-        >
-          <option value="board">Board order</option>
-          <option value="due">Due date</option>
-          <option value="priority">Priority</option>
-        </Select>
+        <div className="flex items-center gap-2">
+          {view === 'list' && (
+            <Select
+              aria-label="Sort tasks"
+              className="w-40"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as SortBy)}
+            >
+              <option value="board">Board order</option>
+              <option value="due">Due date</option>
+              <option value="priority">Priority</option>
+            </Select>
+          )}
+          {(['list', 'board'] as const).map((v) => (
+            <Button
+              key={v}
+              variant={view === v ? 'secondary' : 'ghost'}
+              aria-pressed={view === v}
+              onClick={() => setView(v)}
+            >
+              {v === 'list' ? 'List' : 'Board'}
+            </Button>
+          ))}
+        </div>
       </div>
       {canManage && <NewTask projectId={project.id} />}
 
       {(tasks.isPending || statuses.isPending) && <Spinner />}
       <FormError message={tasks.isError || statuses.isError ? 'Could not load the tasks.' : null} />
-      {tasks.data?.length === 0 && <p className="mt-2 text-sm text-muted">No tasks yet.</p>}
-      {tasks.data &&
+      <FormError message={errorText(update.error)} />
+      {tasks.data?.length === 0 && view === 'list' && (
+        <p className="mt-2 text-sm text-muted">No tasks yet.</p>
+      )}
+      {view === 'board' && tasks.data && statuses.data && (
+        <TaskBoard
+          tasks={tasks.data}
+          statuses={statuses.data}
+          canManage={canManage}
+          userId={user?.id}
+          onOpen={(t) => setOpenId(t.id)}
+          onMove={(t, statusId, sortKey) =>
+            update.mutate({
+              id: t.id,
+              sortKey,
+              ...(statusId !== t.statusId && { statusId }),
+            })
+          }
+        />
+      )}
+      {view === 'list' &&
+        tasks.data &&
         statuses.data?.map((status) => {
           const column = tasks.data.filter((t) => t.statusId === status.id).sort(SORTERS[sortBy]);
           if (column.length === 0) return null;
