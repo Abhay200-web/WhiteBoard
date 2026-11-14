@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { SessionUser, Task, TaskStatus } from '@whiteboard/core';
 import { http, HttpResponse } from 'msw';
@@ -169,6 +169,76 @@ describe('task list', () => {
     // The new task opens straight away, without a reload.
     await user.click(within(todo).getByRole('button', { name: 'Logo concepts' }));
     expect(within(await drawer()).getByLabelText('Title')).toHaveValue('Logo concepts');
+  });
+});
+
+describe('task board', () => {
+  /** Drags the card titled `title` and drops it on `target` (a column or another card). */
+  function dragCard(title: string, target: Element) {
+    const card = screen.getByRole('button', { name: title }).closest('article')!;
+    fireEvent.dragStart(card);
+    fireEvent.dragOver(target);
+    fireEvent.drop(target);
+  }
+  const column = (name: string) => screen.getByRole('region', { name });
+  const cardsIn = (name: string) =>
+    within(column(name))
+      .queryAllByRole('button')
+      .map((b) => b.textContent);
+
+  async function openBoard() {
+    const user = userEvent.setup();
+    renderApp('/projects/p1', 'tok');
+    await user.click(await screen.findByRole('button', { name: 'Board' }));
+    await screen.findByRole('region', { name: 'Approved' }); // every column shows, even empty
+  }
+
+  it('moves a card to another column, and reorders cards inside one', async () => {
+    mockHost({}, MIA);
+    const sent = mockProject('manager', [
+      task({ id: 't1', title: 'Wordmark', sortKey: 1000 }),
+      task({ id: 't2', title: 'Icon', sortKey: 2000 }),
+    ]);
+    await openBoard();
+
+    dragCard('Icon', screen.getByRole('button', { name: 'Wordmark' }).closest('article')!);
+    await waitFor(() => expect(cardsIn('To do')).toEqual(['Icon', 'Wordmark']));
+
+    dragCard('Wordmark', column('In progress'));
+    await waitFor(() => expect(cardsIn('In progress')).toEqual(['Wordmark']));
+    expect(sent.map((s) => s.body)).toEqual([
+      { sortKey: 0 },
+      { sortKey: 1000, statusId: 's-doing' },
+    ]);
+  });
+
+  it('lets an assignee drop only where the rules allow', async () => {
+    mockHost({}, FRED);
+    const sent = mockProject('artist', [task({ assignees: [{ userId: 'u3', name: 'Fred' }] })]);
+    await openBoard();
+    dragCard('Logo concepts', column('Approved'));
+    expect(cardsIn('Approved')).toEqual([]);
+    dragCard('Logo concepts', column('In progress'));
+    await waitFor(() => expect(cardsIn('In progress')).toEqual(['Logo concepts']));
+    expect(sent.map((s) => s.body)).toEqual([{ sortKey: 1000, statusId: 's-doing' }]);
+  });
+
+  it('puts the card back and explains when the Host refuses the move', async () => {
+    mockHost({}, MIA);
+    mockProject('manager', [task()]);
+    server.use(
+      http.patch('*/tasks/:id', () =>
+        HttpResponse.json(
+          { error: 'forbidden', message: 'You cannot move this task to Done' },
+          { status: 403 },
+        ),
+      ),
+    );
+    await openBoard();
+    dragCard('Logo concepts', column('Done'));
+    expect(await screen.findByText('You cannot move this task to Done')).toBeInTheDocument();
+    expect(cardsIn('To do')).toEqual(['Logo concepts']);
+    expect(cardsIn('Done')).toEqual([]);
   });
 });
 

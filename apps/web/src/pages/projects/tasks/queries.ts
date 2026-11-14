@@ -34,7 +34,9 @@ export function patchTask(
   );
 }
 
-type TaskPatch = Partial<Pick<Task, 'title' | 'description' | 'priority' | 'dueAt' | 'statusId'>>;
+type TaskPatch = Partial<
+  Pick<Task, 'title' | 'description' | 'priority' | 'dueAt' | 'statusId' | 'sortKey'>
+>;
 
 /** `PATCH /tasks/:id`, shown at once; the list rolls back if the Host refuses the change. */
 export function useUpdateTask(projectId: string) {
