@@ -36,6 +36,9 @@ export function formatDate(ms: number | null): string {
 export const startOfDay = (date: string): number => new Date(`${date}T00:00:00`).getTime();
 /** Local end of day, so a deadline "today" lasts until midnight. */
 export const endOfDay = (date: string): number => new Date(`${date}T23:59:59`).getTime();
+/** Unix ms as the local `yyyy-mm-dd` a date input expects; empty when there is no date. */
+export const toDateInput = (ms: number | null | undefined): string =>
+  ms == null ? '' : new Date(ms).toLocaleDateString('en-CA');
 
 export function formatFileSize(bytes: number): string {
   if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
