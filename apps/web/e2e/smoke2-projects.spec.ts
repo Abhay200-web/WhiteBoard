@@ -134,6 +134,15 @@ test('manager creates a project with a brief and files, adds the freelancer; out
     'Logo concepts',
   );
 
+  // She also finds it in My tasks, with its project (no due date, so under Later).
+  await freelancer.page.getByRole('link', { name: 'My tasks' }).click();
+  await expect(freelancer.page.getByRole('region', { name: 'Later' })).toContainText(
+    'Logo concepts',
+  );
+  await expect(freelancer.page.getByRole('region', { name: 'Later' })).toContainText(
+    'Logo for Client X',
+  );
+
   // The manager approves it on the board by dragging the card (live updates come in 4.7).
   await page.reload();
   await page.getByRole('button', { name: 'Board' }).click();
