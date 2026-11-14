@@ -1,6 +1,14 @@
 import multipart from '@fastify/multipart';
 import { DEFAULT_MAX_UPLOAD_BYTES, fileSchema, type FileInfo } from '@whiteboard/core';
-import { files, hostSettings, projectFiles, projectMembers, type Db } from '@whiteboard/db';
+import {
+  files,
+  hostSettings,
+  projectFiles,
+  projectMembers,
+  taskFiles,
+  tasks,
+  type Db,
+} from '@whiteboard/db';
 import { and, eq } from 'drizzle-orm';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 
@@ -27,17 +35,27 @@ type FileRow = typeof files.$inferSelect;
 
 /**
  * Who may read a file: the uploader, workspace admins, and members of any project the file is
- * attached to (`project_files`). Every file route goes through this one function.
+ * attached to, directly (`project_files`) or through one of its tasks (`task_files`). Every file
+ * route goes through this one function.
  */
 export function canAccessFile(db: Db, auth: Actor, file: FileRow): boolean {
   if (file.uploadedBy === auth.user.id || isAdmin(auth)) return true;
-  const shared = db
+  const isMember = eq(projectMembers.userId, auth.user.id);
+  const onProject = db
     .select({ projectId: projectFiles.projectId })
     .from(projectFiles)
     .innerJoin(projectMembers, eq(projectMembers.projectId, projectFiles.projectId))
-    .where(and(eq(projectFiles.fileId, file.id), eq(projectMembers.userId, auth.user.id)))
+    .where(and(eq(projectFiles.fileId, file.id), isMember))
     .get();
-  return shared !== undefined;
+  if (onProject) return true;
+  const onTask = db
+    .select({ taskId: taskFiles.taskId })
+    .from(taskFiles)
+    .innerJoin(tasks, eq(tasks.id, taskFiles.taskId))
+    .innerJoin(projectMembers, eq(projectMembers.projectId, tasks.projectId))
+    .where(and(eq(taskFiles.fileId, file.id), isMember))
+    .get();
+  return onTask !== undefined;
 }
 
 /** Types a browser can show in place; everything else is downloaded. */

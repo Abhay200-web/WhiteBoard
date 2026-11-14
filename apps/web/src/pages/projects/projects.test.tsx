@@ -55,6 +55,11 @@ const detail = (over: Record<string, unknown> = {}): ProjectDetail =>
 beforeEach(() => {
   URL.createObjectURL = vi.fn(() => 'blob:test');
   URL.revokeObjectURL = vi.fn();
+  // Project pages also show the Tasks section; its own tests live in tasks/tasks.test.tsx.
+  server.use(
+    http.get('*/projects/p1/statuses', () => HttpResponse.json([])),
+    http.get('*/projects/p1/tasks', () => HttpResponse.json([])),
+  );
 });
 
 describe('projects list', () => {
@@ -256,6 +261,68 @@ describe('project overview', () => {
     expect(screen.getByRole('button', { name: 'Send to review' })).toBeInTheDocument();
   });
 
+  it('edits the project details from a prefilled dialog', async () => {
+    mockHost({}, MEMBER);
+    let current = detail();
+    let sent: Record<string, unknown> | null = null;
+    server.use(
+      http.get('*/projects/p1', () => HttpResponse.json(current)),
+      http.get('*/projects/p1/files', () => HttpResponse.json([])),
+      http.get('*/people', () => HttpResponse.json([])),
+      http.get('*/projects', () => HttpResponse.json([])),
+      http.patch('*/projects/p1', async ({ request }) => {
+        sent = (await request.json()) as Record<string, unknown>;
+        current = detail({ name: sent.name, clientName: sent.clientName });
+        return HttpResponse.json(current);
+      }),
+    );
+    const user = userEvent.setup();
+    renderApp('/projects/p1', 'tok');
+    await user.click(await screen.findByRole('button', { name: 'Edit project' }));
+    const dialog = screen.getByRole('dialog', { name: 'Edit project' });
+    const name = within(dialog).getByLabelText('Project name');
+    expect(name).toHaveValue('Logo for Client X');
+    expect(within(dialog).getByLabelText('Deadline')).toHaveValue('2027-03-01');
+    expect(within(dialog).getByRole('textbox', { name: 'Brief' })).toHaveTextContent(
+      'Make it bold',
+    );
+
+    await user.clear(name);
+    await user.type(name, 'Logo v2');
+    await user.clear(within(dialog).getByLabelText('Client (optional)'));
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+
+    expect(await screen.findByRole('heading', { name: 'Logo v2' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(sent).toMatchObject({
+      name: 'Logo v2',
+      clientName: null,
+      deadline: new Date('2027-03-01T23:59:59').getTime(),
+    });
+    expect(JSON.stringify((sent as unknown as { brief: unknown }).brief)).toContain('Make it bold');
+  });
+
+  it('keeps the edit dialog open and shows the Host error when saving fails', async () => {
+    mockHost({}, MEMBER);
+    mockProject(detail());
+    server.use(
+      http.patch('*/projects/p1', () =>
+        HttpResponse.json(
+          { error: 'forbidden', message: 'Only a project manager can do this' },
+          { status: 403 },
+        ),
+      ),
+    );
+    const user = userEvent.setup();
+    renderApp('/projects/p1', 'tok');
+    await user.click(await screen.findByRole('button', { name: 'Edit project' }));
+    const dialog = screen.getByRole('dialog', { name: 'Edit project' });
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+    expect(
+      await within(dialog).findByText('Only a project manager can do this'),
+    ).toBeInTheDocument();
+  });
+
   it('adds a person (freelancers can only be artists) and removes one', async () => {
     mockHost({}, MEMBER);
     let current = detail();
@@ -322,6 +389,7 @@ describe('project overview', () => {
     expect(await screen.findByRole('heading', { name: 'Logo for Client X' })).toBeInTheDocument();
     expect(screen.getByText('Your role').nextSibling).toHaveTextContent('Artist');
     expect(screen.queryByRole('button', { name: 'Mark as active' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit project' })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Add a person')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Remove/ })).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Choose files/)).not.toBeInTheDocument();

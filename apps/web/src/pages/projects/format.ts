@@ -1,4 +1,4 @@
-import type { ProjectMemberRole, ProjectStatus } from '@whiteboard/core';
+import type { ProjectMemberRole, ProjectStatus, TaskPriority } from '@whiteboard/core';
 
 export const STATUS_LABEL: Record<ProjectStatus, string> = {
   draft: 'Draft',
@@ -22,6 +22,13 @@ export const ROLE_LABEL: Record<ProjectMemberRole, string> = {
   artist: 'Artist',
 };
 
+export const PRIORITY_LABEL: Record<TaskPriority, string> = {
+  low: 'Low',
+  medium: 'Medium',
+  high: 'High',
+  urgent: 'Urgent',
+};
+
 export function formatDate(ms: number | null): string {
   return ms === null
     ? '-'
@@ -36,6 +43,12 @@ export function formatDate(ms: number | null): string {
 export const startOfDay = (date: string): number => new Date(`${date}T00:00:00`).getTime();
 /** Local end of day, so a deadline "today" lasts until midnight. */
 export const endOfDay = (date: string): number => new Date(`${date}T23:59:59`).getTime();
+/** Unix ms as the local `yyyy-mm-dd` a date input expects; empty when there is no date. */
+export const toDateInput = (ms: number | null | undefined): string =>
+  ms == null ? '' : new Date(ms).toLocaleDateString('en-CA');
+/** Unix ms as the local `yyyy-mm-ddThh:mm` a `datetime-local` input expects. */
+export const toDateTimeInput = (ms: number | null): string =>
+  ms == null ? '' : `${toDateInput(ms)}T${new Date(ms).toTimeString().slice(0, 5)}`;
 
 export function formatFileSize(bytes: number): string {
   if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;

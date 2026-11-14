@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { createProjectRequestSchema, projectDetailSchema, type FileInfo } from '@whiteboard/core';
-import { isRichTextEmpty, RichTextEditor, type RichTextDoc } from '@whiteboard/editor';
-import { Button, Card, Field, FileUploader, Input } from '@whiteboard/ui';
+import { projectDetailSchema, type FileInfo } from '@whiteboard/core';
+import type { RichTextDoc } from '@whiteboard/editor';
+import { Button, Card, FileUploader } from '@whiteboard/ui';
 import { useState, type FormEvent } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router';
 
@@ -9,7 +9,8 @@ import { useAuth } from '../../auth/AuthProvider';
 import { FormError } from '../../components/AuthShell';
 import { api, ApiError } from '../../lib/api';
 import { uploadFile } from '../../lib/files';
-import { endOfDay, formatFileSize, startOfDay } from './format';
+import { formatFileSize } from './format';
+import { ProjectDetailsFields, ProjectTextFields, readProjectForm } from './ProjectForm';
 
 /** Create-project flow: name, client, dates, brief, instructions and reference files. */
 export function NewProjectPage() {
@@ -49,20 +50,7 @@ export function NewProjectPage() {
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    const text = (key: string) => String(data.get(key) ?? '').trim();
-    const start = text('startDate');
-    const deadline = text('deadline');
-    const budget = text('budget');
-    const parsed = createProjectRequestSchema.safeParse({
-      name: text('name'),
-      clientName: text('clientName') || null,
-      brief: isRichTextEmpty(brief) ? null : brief,
-      instructions: isRichTextEmpty(instructions) ? null : instructions,
-      startDate: start ? startOfDay(start) : null,
-      deadline: deadline ? endOfDay(deadline) : null,
-      budget: budget ? Number(budget) : null,
-    });
+    const parsed = readProjectForm(event.currentTarget, brief, instructions);
     if (!parsed.success) return setError(parsed.error.issues[0]?.message ?? 'Check the form');
     setError(null);
     create.mutate(parsed.data);
@@ -76,34 +64,11 @@ export function NewProjectPage() {
       <h1 className="mt-2 text-xl font-semibold">New project</h1>
       <form onSubmit={onSubmit} noValidate className="mt-6 flex flex-col gap-6">
         <Card className="flex flex-col gap-4">
-          <Field label="Project name">
-            <Input name="name" autoFocus />
-          </Field>
-          <Field label="Client (optional)">
-            <Input name="clientName" />
-          </Field>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="Start date">
-              <Input name="startDate" type="date" />
-            </Field>
-            <Field label="Deadline">
-              <Input name="deadline" type="date" />
-            </Field>
-            <Field label="Budget (optional)">
-              <Input name="budget" type="number" min={0} />
-            </Field>
-          </div>
+          <ProjectDetailsFields />
         </Card>
 
         <Card className="flex flex-col gap-4">
-          <div>
-            <h2 className="mb-1.5 text-sm font-medium">Brief</h2>
-            <RichTextEditor label="Brief" onChange={setBrief} />
-          </div>
-          <div>
-            <h2 className="mb-1.5 text-sm font-medium">Instructions</h2>
-            <RichTextEditor label="Instructions" onChange={setInstructions} />
-          </div>
+          <ProjectTextFields onBrief={setBrief} onInstructions={setInstructions} />
         </Card>
 
         <Card>

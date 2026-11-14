@@ -41,6 +41,12 @@ export class ApiError extends Error {
   }
 }
 
+/** Message for the first error given (e.g. several mutations' `.error`), or `null` if none. */
+export function errorText(...errors: unknown[]): string | null {
+  const err = errors.find(Boolean);
+  return err instanceof ApiError ? err.message : err ? 'Something went wrong' : null;
+}
+
 interface RequestOptions<S extends z.ZodType> {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;

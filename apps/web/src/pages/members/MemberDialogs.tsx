@@ -3,11 +3,8 @@ import { passwordResetSchema, type Member } from '@whiteboard/core';
 import { Button, Modal } from '@whiteboard/ui';
 
 import { FormError } from '../../components/AuthShell';
-import { api, ApiError } from '../../lib/api';
+import { api, errorText } from '../../lib/api';
 import { CopyButton } from './CopyButton';
-
-const errorText = (err: unknown) =>
-  err instanceof ApiError ? err.message : err ? 'Something went wrong' : null;
 
 export function ResetPasswordDialog({ member, onClose }: { member: Member; onClose: () => void }) {
   const queryClient = useQueryClient();
