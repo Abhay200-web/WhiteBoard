@@ -3,6 +3,7 @@ import {
   PROJECT_FILE_KINDS,
   PROJECT_MEMBER_ROLES,
   PROJECT_STATUSES,
+  TASK_PRIORITIES,
   TASK_STATUS_KINDS,
   WORKSPACE_ROLES,
 } from '@whiteboard/core';
@@ -165,7 +166,7 @@ export const projectMembers = sqliteTable(
   ],
 );
 
-/** Task columns of a project; seeded with six defaults (one per kind). Used by Part 4. */
+/** Task columns of a project; seeded with six defaults (one per kind). */
 export const taskStatuses = sqliteTable(
   'task_statuses',
   {
@@ -200,6 +201,81 @@ export const projectFiles = sqliteTable(
     primaryKey({ columns: [t.projectId, t.fileId] }),
     index('project_files_file_idx').on(t.fileId),
   ],
+);
+
+/** A unit of work in a project. `description` is TipTap JSON; `sortKey` orders it in its column. */
+export const tasks = sqliteTable(
+  'tasks',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id),
+    statusId: text('status_id')
+      .notNull()
+      .references(() => taskStatuses.id),
+    title: text('title').notNull(),
+    description: text('description', { mode: 'json' }),
+    priority: text('priority', { enum: TASK_PRIORITIES }).notNull().default('medium'),
+    startAt: integer('start_at', { mode: 'timestamp_ms' }),
+    dueAt: integer('due_at', { mode: 'timestamp_ms' }),
+    sortKey: integer('sort_key').notNull(),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => users.id),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [index('tasks_project_idx').on(t.projectId, t.statusId, t.sortKey)],
+);
+
+export const taskAssignees = sqliteTable(
+  'task_assignees',
+  {
+    taskId: text('task_id')
+      .notNull()
+      .references(() => tasks.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id),
+  },
+  (t) => [
+    primaryKey({ columns: [t.taskId, t.userId] }),
+    index('task_assignees_user_idx').on(t.userId),
+  ],
+);
+
+/** Checklist items inside a task. */
+export const subtasks = sqliteTable(
+  'subtasks',
+  {
+    id: text('id').primaryKey(),
+    taskId: text('task_id')
+      .notNull()
+      .references(() => tasks.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    done: integer('done', { mode: 'boolean' }).notNull().default(false),
+    sortKey: integer('sort_key').notNull(),
+  },
+  (t) => [index('subtasks_task_idx').on(t.taskId)],
+);
+
+/** Already-uploaded files attached to a task. Members of the task's project can read them. */
+export const taskFiles = sqliteTable(
+  'task_files',
+  {
+    taskId: text('task_id')
+      .notNull()
+      .references(() => tasks.id, { onDelete: 'cascade' }),
+    fileId: text('file_id')
+      .notNull()
+      .references(() => files.id),
+    addedBy: text('added_by')
+      .notNull()
+      .references(() => users.id),
+    addedAt: integer('added_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.taskId, t.fileId] }), index('task_files_file_idx').on(t.fileId)],
 );
 
 /** Last run of each scheduled job, so missed runs are caught up after Host downtime. */
