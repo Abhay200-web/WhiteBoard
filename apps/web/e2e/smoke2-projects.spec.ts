@@ -167,9 +167,9 @@ test('manager creates a project with a brief and files, adds the freelancer; out
     'Logo for Client X',
   );
 
-  // The manager approves it on the board by dragging the card (live updates come in 4.7).
-  await page.reload();
+  // The manager's board shows her move live, without a reload; he approves it by dragging.
   await page.getByRole('button', { name: 'Board' }).click();
+  await expect(page.getByRole('region', { name: 'In progress' })).toContainText('Logo concepts');
   const approved = page.getByRole('region', { name: 'Approved' });
   // Both columns must be on screen: a drag cannot scroll the page to its target.
   await approved.scrollIntoViewIfNeeded();

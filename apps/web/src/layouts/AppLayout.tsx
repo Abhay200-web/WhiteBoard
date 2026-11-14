@@ -3,6 +3,7 @@ import { Button, cn } from '@whiteboard/ui';
 import { NavLink, Outlet } from 'react-router';
 
 import { useAuth } from '../auth/AuthProvider';
+import { ConnectionBanner } from '../components/ConnectionBanner';
 import { NotificationBell } from '../components/NotificationBell';
 import { useLiveEvents } from '../lib/events';
 
@@ -22,9 +23,10 @@ const canSee = (who: (typeof NAV)[number]['who'], role: WorkspaceRole | undefine
 /** App chrome: top bar with navigation and the signed-in user. */
 export function AppLayout() {
   const { user, signOut } = useAuth();
-  useLiveEvents(!!user);
+  const live = useLiveEvents(!!user);
   return (
     <div className="min-h-screen">
+      <ConnectionBanner status={live} />
       <header className="border-b border-line bg-surface">
         <div className="mx-auto flex h-14 max-w-6xl items-center gap-6 px-4">
           <span className="font-semibold">Whiteboard</span>

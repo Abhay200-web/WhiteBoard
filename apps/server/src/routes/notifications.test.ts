@@ -214,6 +214,25 @@ describe('live /events', () => {
     live.socket.terminate();
   });
 
+  it('tells everyone who can see the project that a task changed, and nobody else', async () => {
+    const task = await createTask();
+    const outsider = await seedUser(host.db, owner.workspaceId, 'member');
+    const admin = await seedUser(host.db, owner.workspaceId, 'admin');
+    const member = await connect(artist.token);
+    const other = await connect(outsider.token);
+    const boss = await connect(admin.token);
+    const all = [member, other, boss];
+    await until(() => all.every((c) => c.received.length > 0)); // all signed in
+
+    await call('PATCH', `/tasks/${task.id}`, manager.token, { title: 'Logo concepts v2' });
+    const changed = JSON.stringify({ type: 'task.changed', projectId, taskId: task.id });
+    await until(() => member.received.includes(changed) && boss.received.includes(changed));
+    expect(member.received).toContain(changed);
+    expect(boss.received).toContain(changed); // admins see every project
+    expect(other.received).toEqual([JSON.stringify({ type: 'ready' })]);
+    all.forEach((c) => c.socket.terminate());
+  });
+
   it('closes the connection when the token is wrong', async () => {
     const live = await connect('not-a-token');
     await until(() => live.closedWith() !== null);

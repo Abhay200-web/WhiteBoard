@@ -37,7 +37,7 @@ import { authenticate, badRequest, requireRole, sendError, ALL_ROLES } from '../
 import { canManageProject, isAdmin } from '../projects/access';
 import type { EventHub } from '../events/hub';
 import { recordHistory } from '../projects/history';
-import { notify, taskAudience } from '../projects/notify';
+import { announceTaskChange, notify, taskAudience } from '../projects/notify';
 import { taskAccess } from '../projects/taskAccess';
 import { canAccessFile } from './files';
 
@@ -50,6 +50,9 @@ export const taskRoutes: FastifyPluginAsync<{ db: Db; hub: EventHub }> = async (
 ) => {
   const signedIn = [authenticate(db), requireRole(ALL_ROLES)];
   const { loadProjectId, loadTask, loadSubtask, isAssignee, allProjectMembers } = taskAccess(db);
+  /** After a change is saved: open apps showing this project reload the task. */
+  const changed = (projectId: string, taskId: string) =>
+    announceTaskChange(db, hub, projectId, taskId);
 
   const NOT_MEMBERS = 'Tasks can only be assigned to people on this project';
   const refuseMove = (reply: FastifyReply, statusName: string) =>
@@ -289,6 +292,7 @@ export const taskRoutes: FastifyPluginAsync<{ db: Db; hub: EventHub }> = async (
         taskId: id,
       });
     });
+    changed(projectId, id);
     return reply.code(201).send(reload(id));
   });
 
@@ -366,6 +370,7 @@ export const taskRoutes: FastifyPluginAsync<{ db: Db; hub: EventHub }> = async (
         record({ event: 'due', from: dueBefore, to: b.dueAt });
       }
     });
+    changed(task.projectId, task.id);
     return reload(task.id);
   });
 
@@ -397,6 +402,7 @@ export const taskRoutes: FastifyPluginAsync<{ db: Db; hub: EventHub }> = async (
     const task = loadTask(request, reply, 'manage');
     if (!task) return;
     db.delete(tasks).where(eq(tasks.id, task.id)).run();
+    changed(task.projectId, task.id);
     return reply.code(204).send();
   });
 
@@ -431,6 +437,7 @@ export const taskRoutes: FastifyPluginAsync<{ db: Db; hub: EventHub }> = async (
         taskId: task.id,
       });
     });
+    changed(task.projectId, task.id);
     return reload(task.id);
   });
 
@@ -464,6 +471,7 @@ export const taskRoutes: FastifyPluginAsync<{ db: Db; hub: EventHub }> = async (
         sortKey: nextSubtaskKey(task.id),
       })
       .run();
+    changed(task.projectId, task.id);
     return reply.code(201).send(listSubtasks(task.id));
   });
 
@@ -475,22 +483,24 @@ export const taskRoutes: FastifyPluginAsync<{ db: Db; hub: EventHub }> = async (
     if (!parsed.success) return badRequest(reply, parsed.error.issues[0]?.message);
     const b = parsed.data;
     const auth = request.auth!;
-    const task = db.select().from(tasks).where(eq(tasks.id, subtask.taskId)).get()!;
+    const { projectId, taskId } = subtask;
     const onlyTicking = Object.keys(b).every((key) => key === 'done');
     if (
-      !canManageProject(db, auth, task.projectId) &&
-      !(onlyTicking && isAssignee(task.id, auth.user.id))
+      !canManageProject(db, auth, projectId) &&
+      !(onlyTicking && isAssignee(taskId, auth.user.id))
     ) {
       return sendError(reply, 403, 'forbidden', 'Only a project manager can do this');
     }
     db.update(subtasks).set(b).where(eq(subtasks.id, subtask.id)).run();
-    return listSubtasks(task.id);
+    changed(projectId, taskId);
+    return listSubtasks(taskId);
   });
 
   app.delete('/subtasks/:id', { preHandler: signedIn }, async (request, reply) => {
     const subtask = loadSubtask(request, reply, 'manage');
     if (!subtask) return;
     db.delete(subtasks).where(eq(subtasks.id, subtask.id)).run();
+    changed(subtask.projectId, subtask.taskId);
     return reply.code(204).send();
   });
 
@@ -557,6 +567,7 @@ export const taskRoutes: FastifyPluginAsync<{ db: Db; hub: EventHub }> = async (
         });
       }
     });
+    changed(task.projectId, task.id);
     return reply.code(201).send(listTaskFiles(task.id));
   });
 
@@ -581,6 +592,7 @@ export const taskRoutes: FastifyPluginAsync<{ db: Db; hub: EventHub }> = async (
       return true;
     });
     if (!removed) return sendError(reply, 404, 'not_found', 'File is not on this task');
+    changed(task.projectId, task.id);
     return reply.code(204).send();
   });
 };
