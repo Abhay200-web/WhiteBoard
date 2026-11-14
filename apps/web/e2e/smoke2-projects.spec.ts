@@ -126,9 +126,21 @@ test('manager creates a project with a brief and files, adds the freelancer; out
   await drawer.getByRole('button', { name: 'Close' }).click();
   await expect(page.getByRole('region', { name: 'To do' })).toContainText('Fran');
 
-  await freelancer.page.reload();
-  await freelancer.page.getByRole('button', { name: 'Logo concepts' }).click();
-  const herDrawer = freelancer.page.getByRole('dialog');
+  // Her bell updates live, without a reload: added to the project, then assigned the task.
+  await freelancer.page.keyboard.press('Escape'); // closes the file preview she left open
+  const bell = freelancer.page.getByRole('button', { name: 'Notifications, 2 unread' });
+  await expect(bell).toBeVisible();
+  await bell.click();
+  await freelancer.page
+    .getByRole('region', { name: 'Notifications' })
+    .getByRole('button', { name: /assigned you Logo concepts/ })
+    .click();
+  // The notification opens the task straight away.
+  const herDrawer = freelancer.page.getByRole('dialog', { name: 'Logo concepts' });
+  await expect(herDrawer).toBeVisible();
+  await expect(
+    freelancer.page.getByRole('button', { name: 'Notifications, 1 unread' }),
+  ).toBeVisible();
   await herDrawer.getByLabel('Status').selectOption('In progress');
   // She asks the manager (the owner here) a question, @-mentioning him.
   await herDrawer.getByLabel('New comment').pressSequentially('Which colours, @Ow');

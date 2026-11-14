@@ -25,11 +25,15 @@ export default defineConfig({
         '/subtasks',
         '/me/',
         '/comments',
+        '/notifications',
+        '/events',
       ].map((p) => [
         p,
         {
           target: HOST,
           changeOrigin: true,
+          ws: p === '/events', // the live connection is a WebSocket
+
           bypass: (req: { headers: { accept?: string } }) =>
             req.headers.accept?.includes('text/html') ? '/index.html' : undefined,
         },

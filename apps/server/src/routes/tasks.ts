@@ -35,14 +35,19 @@ import type { FastifyPluginAsync, FastifyReply } from 'fastify';
 
 import { authenticate, badRequest, requireRole, sendError, ALL_ROLES } from '../plugins/auth';
 import { canManageProject, isAdmin } from '../projects/access';
+import type { EventHub } from '../events/hub';
 import { recordHistory } from '../projects/history';
+import { notify, taskAudience } from '../projects/notify';
 import { taskAccess } from '../projects/taskAccess';
 import { canAccessFile } from './files';
 
 type TaskRow = typeof tasks.$inferSelect;
 type Tx = DbTx;
 
-export const taskRoutes: FastifyPluginAsync<{ db: Db }> = async (app, { db }) => {
+export const taskRoutes: FastifyPluginAsync<{ db: Db; hub: EventHub }> = async (
+  app,
+  { db, hub },
+) => {
   const signedIn = [authenticate(db), requireRole(ALL_ROLES)];
   const { loadProjectId, loadTask, loadSubtask, isAssignee, allProjectMembers } = taskAccess(db);
 
@@ -276,6 +281,13 @@ export const taskRoutes: FastifyPluginAsync<{ db: Db }> = async (app, { db }) =>
         .run();
       writeAssignees(tx, id, b.assigneeIds);
       recordHistory(tx, id, request.auth!.user.id, { event: 'created' });
+      notify(tx, hub, {
+        to: b.assigneeIds,
+        actorId: request.auth!.user.id,
+        kind: 'assigned',
+        projectId,
+        taskId: id,
+      });
     });
     return reply.code(201).send(reload(id));
   });
@@ -336,7 +348,17 @@ export const taskRoutes: FastifyPluginAsync<{ db: Db }> = async (app, { db }) =>
       if (b.sortKey !== undefined)
         spreadIfTied(tx, b.statusId ?? task.statusId, task.id, b.sortKey);
       const record = (change: TaskEvent) => recordHistory(tx, task.id, auth.user.id, change);
-      if (moved) record({ event: 'status', ...moved });
+      if (moved) {
+        record({ event: 'status', ...moved });
+        notify(tx, hub, {
+          to: taskAudience(tx, task.id),
+          actorId: auth.user.id,
+          kind: 'status',
+          projectId: task.projectId,
+          taskId: task.id,
+          detail: moved.to,
+        });
+      }
       if (b.priority !== undefined && b.priority !== task.priority) {
         record({ event: 'priority', from: task.priority, to: b.priority });
       }
@@ -401,6 +423,13 @@ export const taskRoutes: FastifyPluginAsync<{ db: Db }> = async (app, { db }) =>
           removed: removed.map((id) => names.get(id)!),
         });
       }
+      notify(tx, hub, {
+        to: added,
+        actorId: request.auth!.user.id,
+        kind: 'assigned',
+        projectId: task.projectId,
+        taskId: task.id,
+      });
     });
     return reload(task.id);
   });

@@ -1,22 +1,42 @@
 import { randomUUID } from 'node:crypto';
 
 import { commentListSchema, commentRequestSchema, taskHistorySchema } from '@whiteboard/core';
-import { comments, taskHistory, tasks, users, type Db } from '@whiteboard/db';
+import { comments, taskHistory, tasks, users, type Db, type DbTx } from '@whiteboard/db';
 import { asc, eq, sql } from 'drizzle-orm';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 
 import { ALL_ROLES, authenticate, badRequest, requireRole, sendError } from '../plugins/auth';
+import type { EventHub } from '../events/hub';
 import { canManageProject } from '../projects/access';
 import { recordHistory } from '../projects/history';
+import { excerpt, notify, taskAudience } from '../projects/notify';
 import { taskAccess } from '../projects/taskAccess';
 
 /**
  * A task's comments and history. Any project member (and admins) may read and comment; only the
  * author edits a comment; the author or a project manager deletes it.
  */
-export const activityRoutes: FastifyPluginAsync<{ db: Db }> = async (app, { db }) => {
+export const activityRoutes: FastifyPluginAsync<{ db: Db; hub: EventHub }> = async (
+  app,
+  { db, hub },
+) => {
   const signedIn = [authenticate(db), requireRole(ALL_ROLES)];
   const { allowed, paramId, loadTask, currentProjectMembers } = taskAccess(db);
+
+  /** People @-mentioned are told so; the task's other people hear there is a new comment. */
+  function tellAbout(
+    tx: DbTx,
+    c: { taskId: string; projectId: string; authorId: string; body: string },
+    mentioned: string[],
+    alsoCommented: boolean,
+  ) {
+    const common = { actorId: c.authorId, projectId: c.projectId, taskId: c.taskId };
+    const detail = excerpt(c.body);
+    notify(tx, hub, { ...common, to: mentioned, kind: 'mentioned', detail });
+    if (!alsoCommented) return;
+    const others = taskAudience(tx, c.taskId).filter((id) => !mentioned.includes(id));
+    notify(tx, hub, { ...common, to: others, kind: 'commented', detail });
+  }
 
   const listComments = (taskId: string) =>
     commentListSchema.parse(
@@ -73,18 +93,21 @@ export const activityRoutes: FastifyPluginAsync<{ db: Db }> = async (app, { db }
     const parsed = commentRequestSchema.safeParse(request.body);
     if (!parsed.success) return badRequest(reply, parsed.error.issues[0]?.message);
     const authorId = request.auth!.user.id;
+    const { body } = parsed.data;
+    const mentions = currentProjectMembers(task.projectId, parsed.data.mentionIds);
     db.transaction((tx) => {
       tx.insert(comments)
         .values({
           id: randomUUID(),
           taskId: task.id,
           authorId,
-          body: parsed.data.body,
-          mentions: currentProjectMembers(task.projectId, parsed.data.mentionIds),
+          body,
+          mentions,
           createdAt: new Date(),
         })
         .run();
       recordHistory(tx, task.id, authorId, { event: 'comment' });
+      tellAbout(tx, { taskId: task.id, projectId: task.projectId, authorId, body }, mentions, true);
     });
     return reply.code(201).send(listComments(task.id));
   });
@@ -97,15 +120,19 @@ export const activityRoutes: FastifyPluginAsync<{ db: Db }> = async (app, { db }
     }
     const parsed = commentRequestSchema.safeParse(request.body);
     if (!parsed.success) return badRequest(reply, parsed.error.issues[0]?.message);
-    db.update(comments)
-      .set({
-        body: parsed.data.body,
-        mentions: currentProjectMembers(found.projectId, parsed.data.mentionIds),
-        editedAt: new Date(),
-      })
-      .where(eq(comments.id, found.comment.id))
-      .run();
-    return listComments(found.comment.taskId);
+    const { comment, projectId } = found;
+    const { body } = parsed.data;
+    const mentions = currentProjectMembers(projectId, parsed.data.mentionIds);
+    // Only people newly mentioned by the edit are told; everyone else already heard.
+    const newlyMentioned = mentions.filter((id) => !comment.mentions.includes(id));
+    db.transaction((tx) => {
+      tx.update(comments)
+        .set({ body, mentions, editedAt: new Date() })
+        .where(eq(comments.id, comment.id))
+        .run();
+      tellAbout(tx, { ...comment, projectId, body }, newlyMentioned, false);
+    });
+    return listComments(comment.taskId);
   });
 
   app.delete('/comments/:id', { preHandler: signedIn }, async (request, reply) => {

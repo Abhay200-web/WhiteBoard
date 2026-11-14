@@ -1,16 +1,20 @@
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
+import websocket from '@fastify/websocket';
 import type { Db } from '@whiteboard/db';
 import Fastify, { type FastifyInstance } from 'fastify';
 
+import { EventHub } from './events/hub';
 import { activityRoutes } from './routes/activity';
 import { authRoutes } from './routes/auth';
 import { backupRoutes } from './routes/backups';
+import { eventRoutes } from './routes/events';
 import { fileRoutes } from './routes/files';
 import { hostRoutes } from './routes/host';
 import { hostSettingsRoutes } from './routes/host-settings';
 import { inviteRoutes } from './routes/invites';
 import { memberRoutes } from './routes/members';
+import { notificationRoutes } from './routes/notifications';
 import { projectRoutes } from './routes/projects';
 import { setupRoutes, type RateLimitOptions } from './routes/setup';
 import { taskRoutes } from './routes/tasks';
@@ -48,9 +52,14 @@ export function buildApp({
   app.register(memberRoutes, { db });
   app.register(fileRoutes, { db, dataDir });
   app.register(backupRoutes, { db, dataDir });
-  app.register(projectRoutes, { db });
-  app.register(taskRoutes, { db });
-  app.register(activityRoutes, { db });
+  // One hub per Host: who is connected, so a change can ping the people it concerns.
+  const hub = new EventHub();
+  app.register(websocket);
+  app.register(eventRoutes, { db, hub });
+  app.register(notificationRoutes, { db });
+  app.register(projectRoutes, { db, hub });
+  app.register(taskRoutes, { db, hub });
+  app.register(activityRoutes, { db, hub });
   app.register(hostSettingsRoutes, { db, dataDir });
   return app;
 }
