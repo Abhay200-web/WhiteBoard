@@ -2,6 +2,7 @@ import { jobs, memberships } from '@whiteboard/db';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { EventHub } from './events/hub';
 import { expireGuests, guestExpiryJob } from './jobs/guest-expiry';
 import { runDueJobs, type Job } from './scheduler';
 import { bearer, createTestHost, seedUser, setupOwner, type TestHost } from './test-helpers';
@@ -59,7 +60,7 @@ describe('guest expiry job', () => {
     const member = await seedUser(host.db, workspaceId, 'member');
 
     const later = new Date(Date.now() + 2000);
-    expect(expireGuests(host.db, later)).toEqual([expired.id]);
+    expect(expireGuests(host.db, new EventHub(), later)).toEqual([expired.id]);
 
     const get = (token: string) =>
       host.app.inject({ method: 'GET', url: '/auth/me', headers: bearer(token) });
@@ -72,6 +73,6 @@ describe('guest expiry job', () => {
   });
 
   it('is registered as a daily job', () => {
-    expect(guestExpiryJob.intervalMs).toBe(24 * HOUR);
+    expect(guestExpiryJob(new EventHub()).intervalMs).toBe(24 * HOUR);
   });
 });

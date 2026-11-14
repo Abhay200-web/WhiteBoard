@@ -245,6 +245,12 @@ function describeChange(e: TaskHistoryEntry): string {
       return `${e.added ? 'attached' : 'removed'} ${e.name}`;
     case 'comment':
       return 'commented';
+    case 'left': {
+      const after = e.to ? `${e.to} took it over` : 'the task is now unassigned';
+      return e.auto
+        ? `lost access (their end date passed); ${after}`
+        : `removed ${e.name} from the workspace; ${after}`;
+    }
   }
 }
 

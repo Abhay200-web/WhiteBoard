@@ -35,12 +35,14 @@ describe('GET /members', () => {
   });
 });
 
-describe('offboarding: DELETE /members/:id', () => {
+describe('offboarding: POST /members/:id/remove', () => {
+  const remove = (id: string, token: string) => call('POST', `/members/${id}/remove`, token);
+
   it('removes the member and kills their session at once', async () => {
     const member = await seedUser(host.db, owner.workspaceId, 'member');
     expect((await call('GET', '/auth/me', member.token)).statusCode).toBe(200);
 
-    expect((await call('DELETE', `/members/${member.id}`, owner.token)).statusCode).toBe(204);
+    expect((await remove(member.id, owner.token)).statusCode).toBe(204);
 
     expect((await call('GET', '/auth/me', member.token)).statusCode).toBe(401);
     const list = memberListSchema.parse((await call('GET', '/members', owner.token)).json());
@@ -60,21 +62,21 @@ describe('offboarding: DELETE /members/:id', () => {
       .parse((await call('GET', '/members', owner.token)).json())
       .find((m) => m.role === 'owner')!.id;
 
-    expect((await call('DELETE', `/members/${admin2.id}`, admin.token)).statusCode).toBe(403);
-    expect((await call('DELETE', `/members/${ownerId}`, admin.token)).statusCode).toBe(403);
-    expect((await call('DELETE', `/members/${ownerId}`, owner.token)).statusCode).toBe(400); // self
-    expect((await call('DELETE', `/members/${admin.id}`, admin.token)).statusCode).toBe(400); // self
-    expect((await call('DELETE', `/members/${member.id}`, admin.token)).statusCode).toBe(204);
-    expect((await call('DELETE', `/members/${admin2.id}`, owner.token)).statusCode).toBe(204);
+    expect((await remove(admin2.id, admin.token)).statusCode).toBe(403);
+    expect((await remove(ownerId, admin.token)).statusCode).toBe(403);
+    expect((await remove(ownerId, owner.token)).statusCode).toBe(400); // self
+    expect((await remove(admin.id, admin.token)).statusCode).toBe(400); // self
+    expect((await remove(member.id, admin.token)).statusCode).toBe(204);
+    expect((await remove(admin2.id, owner.token)).statusCode).toBe(204);
   });
 
   it('404s for unknown or already-removed members and 403s for plain members', async () => {
     const member = await seedUser(host.db, owner.workspaceId, 'member');
     const other = await seedUser(host.db, owner.workspaceId, 'member');
-    expect((await call('DELETE', '/members/nope', owner.token)).statusCode).toBe(404);
-    expect((await call('DELETE', `/members/${other.id}`, member.token)).statusCode).toBe(403);
-    await call('DELETE', `/members/${other.id}`, owner.token);
-    expect((await call('DELETE', `/members/${other.id}`, owner.token)).statusCode).toBe(404);
+    expect((await remove('nope', owner.token)).statusCode).toBe(404);
+    expect((await remove(other.id, member.token)).statusCode).toBe(403);
+    await remove(other.id, owner.token);
+    expect((await remove(other.id, owner.token)).statusCode).toBe(404);
   });
 });
 

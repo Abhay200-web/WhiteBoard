@@ -6,6 +6,8 @@ export const NOTIFICATION_KINDS = [
   'commented',
   'status',
   'added_to_project',
+  /** To project managers: the actor's freelancer access ran out; their task is unassigned. */
+  'access_ended',
 ] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 

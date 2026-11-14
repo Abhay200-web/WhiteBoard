@@ -1,53 +1,16 @@
-import { expect, test, type Browser, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
+
+import { createInvite, join, signInOwner } from './helpers';
 
 // Part 3 exit check, through the real UI against a real Host. Runs after smoke.spec.ts, which
 // created the workspace and owner.
 test.describe.configure({ mode: 'serial' });
-
-const BASE = 'http://127.0.0.1:5173';
-const OWNER = { email: 'owner@studio.test', password: 'correct-horse-battery' };
-const PASSWORD = 'a-long-new-password';
 
 // A valid 1x1 PNG.
 const PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
   'base64',
 );
-
-async function signInOwner(page: Page) {
-  await page.goto('/login');
-  await page.getByLabel('Email').fill(OWNER.email);
-  await page.getByLabel('Password').fill(OWNER.password);
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
-}
-
-async function createInvite(page: Page, role: 'member' | 'guest'): Promise<string> {
-  await page.getByRole('link', { name: 'Members' }).click();
-  await page.getByRole('button', { name: 'Invite someone' }).click();
-  if (role === 'guest') {
-    await page.getByLabel('Role').selectOption('guest');
-    const end = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
-    await page.getByLabel('Access ends on').fill(end);
-  }
-  await page.getByRole('button', { name: 'Create invite' }).click();
-  const code = (await page.getByLabel('Invite code').textContent())!.trim();
-  await page.getByRole('button', { name: 'Done' }).click();
-  return code;
-}
-
-async function join(browser: Browser, code: string, name: string, email: string) {
-  const context = await browser.newContext({ baseURL: BASE });
-  const page = await context.newPage();
-  await page.goto(`/join?code=${code}`);
-  await page.getByLabel('Your name').fill(name);
-  await page.getByLabel('Email').fill(email);
-  await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
-  await page.getByLabel('Confirm password').fill(PASSWORD);
-  await page.getByRole('button', { name: 'Create account' }).click();
-  await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
-  return { context, page };
-}
 
 test('manager creates a project with a brief and files, adds the freelancer; outsiders cannot see it', async ({
   page,
