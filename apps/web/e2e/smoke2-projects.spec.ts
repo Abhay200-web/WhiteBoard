@@ -128,8 +128,20 @@ test('manager creates a project with a brief and files, adds the freelancer; out
 
   await freelancer.page.reload();
   await freelancer.page.getByRole('button', { name: 'Logo concepts' }).click();
-  await freelancer.page.getByRole('dialog').getByLabel('Status').selectOption('In progress');
-  await freelancer.page.getByRole('dialog').getByRole('button', { name: 'Close' }).click();
+  const herDrawer = freelancer.page.getByRole('dialog');
+  await herDrawer.getByLabel('Status').selectOption('In progress');
+  // She asks the manager (the owner here) a question, @-mentioning him.
+  await herDrawer.getByLabel('New comment').pressSequentially('Which colours, @Ow');
+  await herDrawer.getByRole('button', { name: '@Owner' }).click();
+  await herDrawer.getByRole('button', { name: 'Comment' }).click();
+  await expect(herDrawer.getByRole('list', { name: 'Comments' })).toContainText(
+    'Which colours, @Owner',
+  );
+  await herDrawer.getByText(/^History/).click();
+  await expect(herDrawer.getByRole('list', { name: 'History' })).toContainText(
+    'Fran moved it from To do to In progress',
+  );
+  await herDrawer.getByRole('button', { name: 'Close' }).click();
   await expect(freelancer.page.getByRole('region', { name: 'In progress' })).toContainText(
     'Logo concepts',
   );
