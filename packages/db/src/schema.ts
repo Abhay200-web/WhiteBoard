@@ -278,6 +278,46 @@ export const taskFiles = sqliteTable(
   (t) => [primaryKey({ columns: [t.taskId, t.fileId] }), index('task_files_file_idx').on(t.fileId)],
 );
 
+/** Comments on a task (plain text). `mentions` is a JSON array of @-mentioned user ids. */
+export const comments = sqliteTable(
+  'comments',
+  {
+    id: text('id').primaryKey(),
+    taskId: text('task_id')
+      .notNull()
+      .references(() => tasks.id, { onDelete: 'cascade' }),
+    authorId: text('author_id')
+      .notNull()
+      .references(() => users.id),
+    body: text('body').notNull(),
+    mentions: text('mentions', { mode: 'json' }).$type<string[]>().notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    editedAt: integer('edited_at', { mode: 'timestamp_ms' }),
+  },
+  (t) => [index('comments_task_idx').on(t.taskId, t.createdAt)],
+);
+
+/**
+ * A task's audit trail: one row per change, written in the same transaction as the change.
+ * `event` + `data` together are a `TaskEvent` (packages/core), checked when read.
+ */
+export const taskHistory = sqliteTable(
+  'task_history',
+  {
+    id: text('id').primaryKey(),
+    taskId: text('task_id')
+      .notNull()
+      .references(() => tasks.id, { onDelete: 'cascade' }),
+    actorId: text('actor_id')
+      .notNull()
+      .references(() => users.id),
+    event: text('event').notNull(),
+    data: text('data', { mode: 'json' }).$type<Record<string, unknown>>().notNull(),
+    at: integer('at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [index('task_history_task_idx').on(t.taskId, t.at)],
+);
+
 /** Last run of each scheduled job, so missed runs are caught up after Host downtime. */
 export const jobs = sqliteTable('jobs', {
   name: text('name').primaryKey(),

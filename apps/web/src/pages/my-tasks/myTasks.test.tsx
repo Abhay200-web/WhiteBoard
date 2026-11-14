@@ -98,6 +98,8 @@ describe('My tasks page', () => {
       ),
       http.get('*/tasks/:id/subtasks', () => HttpResponse.json([])),
       http.get('*/tasks/:id/files', () => HttpResponse.json([])),
+      http.get('*/tasks/:id/comments', () => HttpResponse.json([])),
+      http.get('*/tasks/:id/history', () => HttpResponse.json([])),
     );
     const user = userEvent.setup();
     renderApp('/', 'tok');

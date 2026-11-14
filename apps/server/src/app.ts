@@ -3,6 +3,7 @@ import rateLimit from '@fastify/rate-limit';
 import type { Db } from '@whiteboard/db';
 import Fastify, { type FastifyInstance } from 'fastify';
 
+import { activityRoutes } from './routes/activity';
 import { authRoutes } from './routes/auth';
 import { backupRoutes } from './routes/backups';
 import { fileRoutes } from './routes/files';
@@ -49,6 +50,7 @@ export function buildApp({
   app.register(backupRoutes, { db, dataDir });
   app.register(projectRoutes, { db });
   app.register(taskRoutes, { db });
+  app.register(activityRoutes, { db });
   app.register(hostSettingsRoutes, { db, dataDir });
   return app;
 }

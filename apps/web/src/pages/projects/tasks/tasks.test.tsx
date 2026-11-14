@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { SessionUser, Task, TaskStatus } from '@whiteboard/core';
+import type { Comment, SessionUser, Task, TaskHistoryEntry, TaskStatus } from '@whiteboard/core';
 import { delay, http, HttpResponse } from 'msw';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -58,7 +58,11 @@ const task = (over: Partial<Task> = {}): Task => ({
 });
 
 /** A small in-memory Host for one project. Returns what the app sent, for assertions. */
-function mockProject(myRole: 'manager' | 'artist', tasks: Task[]) {
+function mockProject(
+  myRole: 'manager' | 'artist',
+  tasks: Task[],
+  { comments = [] as Comment[], history = [] as TaskHistoryEntry[] } = {},
+) {
   const sent: { method: string; url: string; body: unknown }[] = [];
   let subtasks: { id: string; taskId: string; title: string; done: boolean; sortKey: number }[] =
     [];
@@ -117,6 +121,26 @@ function mockProject(myRole: 'manager' | 'artist', tasks: Task[]) {
       return HttpResponse.json(subtasks);
     }),
     http.get('*/tasks/:id/files', () => HttpResponse.json([])),
+    http.get('*/tasks/:id/history', () => HttpResponse.json(history)),
+    http.get('*/tasks/:id/comments', () => HttpResponse.json(comments)),
+    http.post('*/tasks/:id/comments', async ({ request, params }) => {
+      const body = (await record(request)) as { body: string; mentionIds: string[] };
+      const me = myRole === 'manager' ? MEMBERS[0]! : MEMBERS[1]!;
+      comments = [
+        ...comments,
+        {
+          id: `c${comments.length + 1}`,
+          taskId: String(params.id),
+          authorId: me.userId,
+          authorName: me.name,
+          body: body.body,
+          mentions: body.mentionIds,
+          createdAt: Date.now(),
+          editedAt: null,
+        },
+      ];
+      return HttpResponse.json(comments, { status: 201 });
+    }),
     http.patch('*/tasks/:id', async ({ request, params }) => {
       const body = await record(request);
       tasks = tasks.map((t) => (t.id === params.id ? { ...t, ...body } : t));
@@ -450,5 +474,113 @@ describe('task drawer: closing and refused edits', () => {
     await user.tab();
     expect(await within(panel).findByText('Title is too long')).toBeInTheDocument();
     expect(title).toHaveValue('Logo concepts');
+  });
+});
+
+describe('comments and history', () => {
+  const managerComment: Comment = {
+    id: 'c1',
+    taskId: 't1',
+    authorId: 'u2',
+    authorName: 'Mia',
+    body: 'Use the brand blue',
+    mentions: [],
+    createdAt: 1,
+    editedAt: null,
+  };
+
+  it('comments with an @-mention picked from the project people', async () => {
+    mockHost({}, FRED);
+    const sent = mockProject('artist', [task()], { comments: [managerComment] });
+    const user = userEvent.setup();
+    renderApp('/projects/p1', 'tok');
+    await user.click(await screen.findByRole('button', { name: 'Logo concepts' }));
+    const panel = await drawer();
+    expect(await within(panel).findByText('Use the brand blue')).toBeInTheDocument();
+    // Fred may not edit or delete Mia's comment.
+    expect(within(panel).queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
+    expect(
+      within(panel).queryByRole('button', { name: 'Delete comment by Mia' }),
+    ).not.toBeInTheDocument();
+
+    const box = within(panel).getByLabelText('New comment');
+    await user.type(box, 'Thanks @Mi');
+    const offers = within(panel).getByRole('list', { name: 'Mention someone' });
+    expect(
+      within(offers)
+        .getAllByRole('button')
+        .map((b) => b.textContent),
+    ).toEqual(['@Mia']);
+    await user.click(within(offers).getByRole('button', { name: '@Mia' }));
+    expect(box).toHaveValue('Thanks @Mia ');
+    await user.type(box, 'will do');
+    await user.click(within(panel).getByRole('button', { name: 'Comment' }));
+
+    expect(await within(panel).findByText('Thanks @Mia will do')).toBeInTheDocument();
+    expect(box).toHaveValue('');
+    expect(sent).toContainEqual(
+      expect.objectContaining({ body: { body: 'Thanks @Mia will do', mentionIds: ['u2'] } }),
+    );
+    // Fred can manage his own comment.
+    expect(within(panel).getByRole('button', { name: 'Edit' })).toBeInTheDocument();
+  });
+
+  it('drops a mention whose @Name was deleted from the text, and lets managers delete any comment', async () => {
+    mockHost({}, MIA);
+    const sent = mockProject('manager', [task()], {
+      comments: [
+        { ...managerComment, id: 'c9', authorId: 'u3', authorName: 'Fred', body: 'Done?' },
+      ],
+    });
+    const user = userEvent.setup();
+    renderApp('/projects/p1', 'tok');
+    await user.click(await screen.findByRole('button', { name: 'Logo concepts' }));
+    const panel = await drawer();
+    expect(
+      await within(panel).findByRole('button', { name: 'Delete comment by Fred' }),
+    ).toBeInTheDocument();
+
+    const box = within(panel).getByLabelText('New comment');
+    await user.type(box, '@Fr');
+    await user.click(within(panel).getByRole('button', { name: '@Fred' }));
+    await user.clear(box);
+    await user.type(box, 'Never mind');
+    await user.click(within(panel).getByRole('button', { name: 'Comment' }));
+    await within(panel).findByText('Never mind');
+    expect(sent).toContainEqual(
+      expect.objectContaining({ body: { body: 'Never mind', mentionIds: [] } }),
+    );
+  });
+
+  it('shows the history as plain sentences', async () => {
+    mockHost({}, MIA);
+    mockProject('manager', [task()], {
+      history: [
+        { id: 'h1', event: 'created', actorName: 'Mia', at: 1 },
+        { id: 'h2', event: 'status', from: 'To do', to: 'In progress', actorName: 'Fred', at: 2 },
+        { id: 'h3', event: 'assignees', added: ['Fred'], removed: [], actorName: 'Mia', at: 3 },
+        { id: 'h4', event: 'priority', from: 'medium', to: 'urgent', actorName: 'Mia', at: 4 },
+        { id: 'h5', event: 'due', from: 5, to: null, actorName: 'Mia', at: 5 },
+        { id: 'h6', event: 'file', name: 'brief.pdf', added: true, actorName: 'Mia', at: 6 },
+        { id: 'h7', event: 'comment', actorName: 'Fred', at: 7 },
+      ],
+    });
+    const user = userEvent.setup();
+    renderApp('/projects/p1', 'tok');
+    await user.click(await screen.findByRole('button', { name: 'Logo concepts' }));
+    const panel = await drawer();
+    await user.click(await within(panel).findByText('History (7)'));
+    const lines = within(within(panel).getByRole('list', { name: 'History' }))
+      .getAllByRole('listitem')
+      .map((li) => li.textContent?.split(' · ')[0]);
+    expect(lines).toEqual([
+      'Mia created the task',
+      'Fred moved it from To do to In progress',
+      'Mia assigned Fred',
+      'Mia changed the priority from Medium to Urgent',
+      'Mia removed the due date',
+      'Mia attached brief.pdf',
+      'Fred commented',
+    ]);
   });
 });

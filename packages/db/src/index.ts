@@ -13,6 +13,8 @@ export * from './schema';
 
 /** Drizzle handle; `$client` is the raw better-sqlite3 connection (used for online backups). */
 export type Db = BetterSQLite3Database<typeof schema> & { $client: Database.Database };
+/** The handle inside `db.transaction((tx) => ...)`. */
+export type DbTx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
 const MIGRATIONS_DIR = fileURLToPath(new URL('../migrations', import.meta.url));
 
