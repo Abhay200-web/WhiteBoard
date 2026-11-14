@@ -1,4 +1,4 @@
-﻿import { createProjectRequestSchema, type ProjectDetail } from '@whiteboard/core';
+import { createProjectRequestSchema, type ProjectDetail } from '@whiteboard/core';
 import { isRichTextEmpty, RichTextEditor, type RichTextDoc } from '@whiteboard/editor';
 import { Field, Input } from '@whiteboard/ui';
 

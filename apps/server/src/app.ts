@@ -12,6 +12,7 @@ import { inviteRoutes } from './routes/invites';
 import { memberRoutes } from './routes/members';
 import { projectRoutes } from './routes/projects';
 import { setupRoutes, type RateLimitOptions } from './routes/setup';
+import { taskRoutes } from './routes/tasks';
 
 export interface AppOptions {
   db: Db;
@@ -47,6 +48,7 @@ export function buildApp({
   app.register(fileRoutes, { db, dataDir });
   app.register(backupRoutes, { db, dataDir });
   app.register(projectRoutes, { db });
+  app.register(taskRoutes, { db });
   app.register(hostSettingsRoutes, { db, dataDir });
   return app;
 }

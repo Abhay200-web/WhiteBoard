@@ -11,3 +11,4 @@ export * from './host';
 export * from './members';
 export * from './projects';
 export * from './roles';
+export * from './tasks';
