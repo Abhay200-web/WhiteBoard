@@ -1,6 +1,6 @@
+import { canMoveTask } from '@whiteboard/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { canMoveTask } from '../projects/taskRules';
 import {
   bearer,
   createTestHost,

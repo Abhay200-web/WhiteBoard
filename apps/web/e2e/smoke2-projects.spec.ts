@@ -115,6 +115,25 @@ test('manager creates a project with a brief and files, adds the freelancer; out
   await expect(page.getByText('Client X Ltd')).toBeVisible();
   await expect(page.getByText('Clean, bold wordmark')).toBeVisible();
 
+  // The manager adds a task and assigns the freelancer, who then starts it.
+  await page.getByLabel('New task title').fill('Logo concepts');
+  await page.getByRole('button', { name: 'Add task' }).click();
+  await page.getByRole('button', { name: 'Logo concepts' }).click();
+  const drawer = page.getByRole('dialog');
+  // Ticks once the Host confirms the assignment.
+  await drawer.getByRole('checkbox', { name: 'Fran' }).click();
+  await expect(drawer.getByRole('checkbox', { name: 'Fran' })).toBeChecked();
+  await drawer.getByRole('button', { name: 'Close' }).click();
+  await expect(page.getByRole('region', { name: 'To do' })).toContainText('Fran');
+
+  await freelancer.page.reload();
+  await freelancer.page.getByRole('button', { name: 'Logo concepts' }).click();
+  await freelancer.page.getByRole('dialog').getByLabel('Status').selectOption('In progress');
+  await freelancer.page.getByRole('dialog').getByRole('button', { name: 'Close' }).click();
+  await expect(freelancer.page.getByRole('region', { name: 'In progress' })).toContainText(
+    'Logo concepts',
+  );
+
   await freelancer.context.close();
   await outsider.context.close();
 });

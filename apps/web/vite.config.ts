@@ -21,6 +21,8 @@ export default defineConfig({
         '/backups',
         '/projects',
         '/people',
+        '/tasks',
+        '/subtasks',
       ].map((p) => [
         p,
         {

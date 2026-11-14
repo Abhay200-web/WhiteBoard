@@ -1,12 +1,13 @@
 import { randomUUID } from 'node:crypto';
 
 import {
+  attachedFileListSchema,
   attachTaskFileRequestSchema,
+  canMoveTask,
   createSubtaskRequestSchema,
   createTaskRequestSchema,
   setAssigneesRequestSchema,
   subtaskListSchema,
-  taskFileListSchema,
   taskListSchema,
   taskSchema,
   taskStatusListSchema,
@@ -31,7 +32,6 @@ import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 
 import { authenticate, requireRole, sendError, ALL_ROLES } from '../plugins/auth';
 import { canManageProject, canViewProject } from '../projects/access';
-import { canMoveTask } from '../projects/taskRules';
 import { canAccessFile } from './files';
 
 type TaskRow = typeof tasks.$inferSelect;
@@ -453,7 +453,7 @@ export const taskRoutes: FastifyPluginAsync<{ db: Db }> = async (app, { db }) =>
       .where(eq(taskFiles.taskId, taskId))
       .orderBy(asc(taskFiles.addedAt))
       .all();
-    return taskFileListSchema.parse(
+    return attachedFileListSchema.parse(
       rows.map(({ thumbnailPath, addedAt, ...rest }) => ({
         ...rest,
         addedAt: addedAt.getTime(),
