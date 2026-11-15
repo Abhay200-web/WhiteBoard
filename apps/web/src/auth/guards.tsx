@@ -13,7 +13,7 @@ export function useHostInfo() {
   });
 }
 
-function FullScreenSpinner() {
+export function FullScreenSpinner() {
   return (
     <div className="grid min-h-screen place-items-center text-muted">
       <Spinner />

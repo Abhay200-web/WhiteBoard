@@ -4,6 +4,8 @@ dist/
 .turbo/
 target/
 coverage/
+apps/desktop/sidecar/
+apps/desktop/src-tauri/gen/
 
 # Local Host data (database, files, backups) — never commit
 .data/

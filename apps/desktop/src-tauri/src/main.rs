@@ -1,0 +1,174 @@
+// Whiteboard desktop shell (Step T.2). Asks once whether this PC is the Host or connects to one,
+// runs the Host server in Host mode, and keeps a tray icon. The window shows the web app (apps/web).
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+mod host;
+
+use std::fs;
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::Duration;
+
+use tauri::menu::{Menu, MenuItem};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::{AppHandle, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder};
+
+use host::HostServer;
+
+/// `window.whiteboardDesktop` for the web app (apps/web/src/lib/desktop.ts).
+const BRIDGE: &str = r#"
+window.whiteboardDesktop = Object.freeze({
+  getMode: () => window.__TAURI__.core.invoke('get_mode'),
+  setMode: (mode) => window.__TAURI__.core.invoke('set_mode', { mode }),
+  startHost: () => window.__TAURI__.core.invoke('start_host'),
+});
+"#;
+
+fn mode_file(app: &AppHandle) -> Result<PathBuf, String> {
+    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    Ok(dir.join("mode.txt"))
+}
+
+fn read_mode(app: &AppHandle) -> Option<String> {
+    let saved = fs::read_to_string(mode_file(app).ok()?).ok()?;
+    let mode = saved.trim();
+    (mode == "host" || mode == "client").then(|| mode.to_string())
+}
+
+fn server_paths(app: &AppHandle) -> Result<host::Paths, String> {
+    let sidecar = app
+        .path()
+        .resource_dir()
+        .map_err(|e| e.to_string())?
+        .join("sidecar");
+    let data = app.path().app_local_data_dir().map_err(|e| e.to_string())?;
+    Ok(host::Paths {
+        node: sidecar.join("node.exe"),
+        server_dir: sidecar.join("server"),
+        data_dir: data.join("host"),
+    })
+}
+
+/// `"host"`, `"client"`, or `null` before the first-run choice.
+#[tauri::command]
+fn get_mode(app: AppHandle) -> Option<String> {
+    read_mode(&app)
+}
+
+#[tauri::command]
+fn set_mode(app: AppHandle, mode: String) -> Result<(), String> {
+    if mode != "host" && mode != "client" {
+        return Err(format!("Unknown mode: {mode}"));
+    }
+    let file = mode_file(&app)?;
+    fs::create_dir_all(file.parent().expect("config file has a folder"))
+        .map_err(|e| e.to_string())?;
+    fs::write(file, mode).map_err(|e| e.to_string())
+}
+
+/// Host mode only: starts the server if needed, waits until it answers, returns its address.
+#[tauri::command]
+async fn start_host(app: AppHandle) -> Result<String, String> {
+    if read_mode(&app).as_deref() != Some("host") {
+        return Err("This PC is not set up as the Host.".into());
+    }
+    let paths = server_paths(&app)?;
+    let log = paths.log_file();
+    app.state::<Arc<HostServer>>().start(paths);
+    let ready =
+        tauri::async_runtime::spawn_blocking(|| host::wait_until_ready(Duration::from_secs(120)))
+            .await
+            .map_err(|e| e.to_string())?;
+    if ready {
+        Ok(format!("http://127.0.0.1:{}", host::PORT))
+    } else {
+        Err(format!(
+            "The Host server did not start. Details: {}",
+            log.display()
+        ))
+    }
+}
+
+fn show_main(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
+
+/// Puts this app in a Windows job that ends its child processes when the app ends, even after a
+/// crash, so the Host server never outlives it (it would keep the port and the database open).
+#[cfg(windows)]
+fn end_children_with_app() -> Option<win32job::Job> {
+    let job = win32job::Job::create().ok()?;
+    let mut info = job.query_extended_limit_info().ok()?;
+    info.limit_kill_on_job_close();
+    job.set_extended_limit_info(&info).ok()?;
+    job.assign_current_process().ok()?;
+    Some(job)
+}
+
+fn main() {
+    #[cfg(windows)]
+    let _job = end_children_with_app();
+
+    let app = tauri::Builder::default()
+        // A second copy would start a second server on the same database; focus the first instead.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            show_main(app)
+        }))
+        .manage(Arc::new(HostServer::default()))
+        .invoke_handler(tauri::generate_handler![get_mode, set_mode, start_host])
+        .setup(|app| {
+            WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
+                .title("Whiteboard")
+                .inner_size(1280.0, 800.0)
+                .min_inner_size(900.0, 600.0)
+                .initialization_script(BRIDGE)
+                .build()?;
+
+            let open = MenuItem::with_id(app, "open", "Open Whiteboard", true, None::<&str>)?;
+            let quit = MenuItem::with_id(app, "quit", "Quit Whiteboard", true, None::<&str>)?;
+            TrayIconBuilder::with_id("main")
+                .icon(
+                    app.default_window_icon()
+                        .cloned()
+                        .ok_or("the app has no icon")?,
+                )
+                .tooltip("Whiteboard")
+                .menu(&Menu::with_items(app, &[&open, &quit])?)
+                .show_menu_on_left_click(false)
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "open" => show_main(app),
+                    "quit" => app.exit(0),
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        show_main(tray.app_handle());
+                    }
+                })
+                .build(app)?;
+
+            // Start the server right away rather than when the window first asks for it.
+            if read_mode(app.handle()).as_deref() == Some("host") {
+                app.state::<Arc<HostServer>>()
+                    .start(server_paths(app.handle())?);
+            }
+            Ok(())
+        })
+        .build(tauri::generate_context!())
+        .expect("error while starting Whiteboard");
+
+    app.run(|app, event| {
+        if let RunEvent::Exit = event {
+            app.state::<Arc<HostServer>>().stop();
+        }
+    });
+}
