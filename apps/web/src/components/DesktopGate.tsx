@@ -4,7 +4,13 @@ import { Navigate, Outlet, useLocation } from 'react-router';
 
 import { FullScreenSpinner } from '../auth/guards';
 import { getHostUrl, setHostUrl, setToken } from '../lib/api';
-import { desktopBridge, type DesktopBridge, type DesktopMode } from '../lib/desktop';
+import {
+  desktopBridge,
+  desktopErrorText as reason,
+  useDesktopMode,
+  type DesktopBridge,
+  type DesktopMode,
+} from '../lib/desktop';
 import { AuthShell, FormError } from './AuthShell';
 
 /**
@@ -16,17 +22,10 @@ export function DesktopGate() {
   return bridge ? <DesktopStart bridge={bridge} /> : <Outlet />;
 }
 
-/** The desktop bridge rejects with a plain string. */
-const reason = (err: unknown) => (err instanceof Error ? err.message : String(err));
-
 function DesktopStart({ bridge }: { bridge: DesktopBridge }) {
   const queryClient = useQueryClient();
   const { pathname } = useLocation();
-  const mode = useQuery({
-    queryKey: ['desktop', 'mode'],
-    queryFn: () => bridge.getMode(),
-    staleTime: Infinity,
-  });
+  const mode = useDesktopMode();
   const host = useQuery({
     queryKey: ['desktop', 'host'],
     queryFn: async () => {

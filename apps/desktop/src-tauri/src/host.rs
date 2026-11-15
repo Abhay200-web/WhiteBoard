@@ -1,12 +1,11 @@
-//! Runs the Host server (the sidecar folder built by `sidecar:build`, see docs/adr/0002) and
-//! starts it again if it stops.
+//! Runs the Host server (the sidecar folder built by `sidecar:build`, see docs/adr/0002), starts
+//! it again if it stops, and runs a restore while it is stopped.
 
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::net::{SocketAddr, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -28,46 +27,61 @@ impl Paths {
     }
 }
 
+/// Each start and stop bumps `generation`; a supervisor thread from an older generation (one that
+/// was stopped) ends at its next check, so stop-then-start never leaves two of them running.
+#[derive(Default)]
+struct State {
+    child: Option<Child>,
+    running: bool,
+    generation: u64,
+}
+
 #[derive(Default)]
 pub struct HostServer {
-    child: Mutex<Option<Child>>,
-    started: AtomicBool,
-    stopping: AtomicBool,
+    state: Mutex<State>,
 }
 
 impl HostServer {
-    /// Starts the server and keeps it running. Calling it again does nothing.
+    /// Starts the server and keeps it running. Does nothing while it already runs.
     pub fn start(self: &Arc<Self>, paths: Paths) {
-        if self.started.swap(true, Ordering::SeqCst) {
-            return;
-        }
+        let generation = {
+            let mut state = self.state.lock().unwrap();
+            if state.running {
+                return;
+            }
+            state.running = true;
+            state.generation += 1;
+            state.generation
+        };
         let server = Arc::clone(self);
-        thread::spawn(move || server.supervise(paths));
+        thread::spawn(move || server.supervise(paths, generation));
     }
 
-    /// Stops the server for good (the app is closing).
+    /// Stops the server and waits until it has exited, so the database is closed.
     pub fn stop(&self) {
-        self.stopping.store(true, Ordering::SeqCst);
-        if let Some(mut child) = self.child.lock().unwrap().take() {
+        let mut state = self.state.lock().unwrap();
+        state.running = false;
+        state.generation += 1;
+        if let Some(mut child) = state.child.take() {
             let _ = child.kill();
             let _ = child.wait();
         }
     }
 
-    fn supervise(&self, paths: Paths) {
+    fn supervise(&self, paths: Paths, generation: u64) {
         let log = paths.log_file();
         let mut delay = Duration::ZERO;
         loop {
             thread::sleep(delay);
             let began = Instant::now();
             let reason = {
-                let mut slot = self.child.lock().unwrap();
-                if self.stopping.load(Ordering::SeqCst) {
+                let mut state = self.state.lock().unwrap();
+                if state.generation != generation {
                     return;
                 }
                 match spawn(&paths, &log) {
                     Ok(child) => {
-                        *slot = Some(child);
+                        state.child = Some(child);
                         None
                     }
                     Err(err) => Some(format!("could not start the server: {err}")),
@@ -75,7 +89,7 @@ impl HostServer {
             };
             let reason = match reason {
                 Some(reason) => reason,
-                None => match self.wait_for_exit() {
+                None => match self.wait_for_exit(generation) {
                     Some(reason) => reason,
                     None => return,
                 },
@@ -93,23 +107,65 @@ impl HostServer {
         }
     }
 
-    /// Waits until the server exits and says why; `None` when the app is stopping it.
-    fn wait_for_exit(&self) -> Option<String> {
+    /// Waits until the server exits and says why; `None` when the app stopped it on purpose.
+    fn wait_for_exit(&self, generation: u64) -> Option<String> {
         loop {
             thread::sleep(Duration::from_millis(500));
-            if self.stopping.load(Ordering::SeqCst) {
+            let mut state = self.state.lock().unwrap();
+            if state.generation != generation {
                 return None;
             }
-            let mut slot = self.child.lock().unwrap();
-            let exited = match slot.as_mut()?.try_wait() {
+            let exited = match state.child.as_mut()?.try_wait() {
                 Ok(Some(status)) => format!("the server stopped ({status})"),
                 Ok(None) => continue,
                 Err(err) => format!("lost track of the server: {err}"),
             };
-            *slot = None;
+            state.child = None;
             return Some(exited);
         }
     }
+}
+
+/// Runs the restore command (`dist/restore.mjs`, the same code as the server's `restore` CLI) on
+/// the Host data. The server must be stopped. The current data is kept in `restore-previous-*`.
+/// Returns what the command printed, or its error.
+pub fn run_restore(paths: &Paths, backup: &Path) -> Result<String, String> {
+    let mut command = Command::new(&paths.node);
+    command
+        .arg("dist/restore.mjs")
+        .arg(backup)
+        .arg("--data-dir")
+        .arg(&paths.data_dir)
+        .arg("--replace")
+        .current_dir(&paths.server_dir)
+        .env_remove("NODE_OPTIONS");
+    no_console_window(&mut command);
+    let output = command
+        .output()
+        .map_err(|err| format!("Could not run the restore: {err}"))?;
+    let text = |bytes: &[u8]| String::from_utf8_lossy(bytes).trim().to_string();
+    if output.status.success() {
+        note(&paths.log_file(), &format!("restored {}", backup.display()));
+        return Ok(text(&output.stdout));
+    }
+    let error = text(&output.stderr);
+    note(&paths.log_file(), &format!("restore failed: {error}"));
+    Err(if error.is_empty() {
+        format!("The restore failed ({})", output.status)
+    } else {
+        error
+    })
+}
+
+fn no_console_window(command: &mut Command) {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    #[cfg(not(windows))]
+    let _ = command;
 }
 
 fn spawn(paths: &Paths, log: &Path) -> std::io::Result<Child> {
@@ -128,12 +184,7 @@ fn spawn(paths: &Paths, log: &Path) -> std::io::Result<Child> {
         .stdin(Stdio::null())
         .stdout(out.try_clone()?)
         .stderr(out);
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        command.creation_flags(CREATE_NO_WINDOW);
-    }
+    no_console_window(&mut command);
     command.spawn()
 }
 

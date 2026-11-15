@@ -2,8 +2,10 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { SessionUser } from '@whiteboard/core';
 import { http, HttpResponse } from 'msw';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
+import { setHostUrl } from '../../lib/api';
+import { fakeDesktop, LOCAL_HOST } from '../../test/desktop';
 import { mockHost, OWNER, renderApp } from '../../test/render';
 import { server } from '../../test/setup';
 import { formatBytes } from './HostSection';
@@ -135,6 +137,62 @@ describe('Host settings', () => {
     await user.clear(await screen.findByLabelText('Backup folder'));
     await user.click(screen.getByRole('button', { name: 'Save settings' }));
     expect(await screen.findByText('Enter the backup folder')).toBeInTheDocument();
+  });
+
+  it('restores a backup from the Host PC after asking first', async () => {
+    mockHost({}, OWNER);
+    mockBackups();
+    setHostUrl(LOCAL_HOST); // this PC's own Host, so the desktop gate keeps the session
+    const bridge = fakeDesktop('host', {
+      restoreBackup: vi.fn(
+        async () =>
+          'Restored b1 into C:\\Host\nThe previous data was kept in C:\\Host\\restore-previous-1',
+      ),
+    });
+    const user = userEvent.setup();
+    renderApp('/settings/host', 'tok');
+
+    const list = await screen.findByRole('list', { name: 'Backups to restore' });
+    await user.click(within(list).getByRole('button', { name: 'Restore' }));
+    const dialog = screen.getByRole('dialog', { name: 'Restore this backup?' });
+    expect(bridge.restoreBackup).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole('button', { name: 'Restore' }));
+
+    expect(await screen.findByRole('dialog', { name: 'Backup restored' })).toHaveTextContent(
+      'The previous data was kept in C:\\Host\\restore-previous-1',
+    );
+    expect(bridge.restoreBackup).toHaveBeenCalledWith('D:\\Backups', 'b1');
+  });
+
+  it('shows why a restore failed and keeps the dialog open', async () => {
+    mockHost({}, OWNER);
+    mockBackups();
+    setHostUrl(LOCAL_HOST);
+    fakeDesktop('host', {
+      restoreBackup: vi.fn(async (): Promise<string> => {
+        throw 'The backup database is damaged: page 3';
+      }),
+    });
+    const user = userEvent.setup();
+    renderApp('/settings/host', 'tok');
+
+    const list = await screen.findByRole('list', { name: 'Backups to restore' });
+    await user.click(within(list).getByRole('button', { name: 'Restore' }));
+    const dialog = screen.getByRole('dialog', { name: 'Restore this backup?' });
+    await user.click(within(dialog).getByRole('button', { name: 'Restore' }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('damaged: page 3');
+  });
+
+  it('on a client PC, points to the Host PC for restoring', async () => {
+    mockHost({}, OWNER);
+    mockBackups();
+    setHostUrl('http://192.168.1.20:47800');
+    fakeDesktop('client');
+    renderApp('/settings/host', 'tok');
+
+    expect(await screen.findByText(/Backups are restored on the Host PC/)).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Backups to restore' })).not.toBeInTheDocument();
   });
 
   it('tells admins that only the owner manages backups, without calling the owner-only API', async () => {

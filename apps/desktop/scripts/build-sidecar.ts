@@ -1,6 +1,7 @@
 // Builds the Host server folder the desktop installer ships (docs/adr/0002-server-sidecar.md):
 //   sidecar/node.exe                 pinned Node runtime, checksum-checked
 //   sidecar/server/dist/server.mjs   the server and its pure-JS dependencies in one file
+//   sidecar/server/dist/restore.mjs  the restore command (apps/server/src/restore-cli.ts)
 //   sidecar/server/migrations/       found at start-up as '../migrations' from dist/
 //   sidecar/server/node_modules/     only the packages that cannot be bundled (EXTERNAL)
 import { execSync } from 'node:child_process';
@@ -51,8 +52,13 @@ rmSync(appDir, { recursive: true, force: true });
 mkdirSync(appDir, { recursive: true });
 
 await build({
-  entryPoints: [path.join(serverDir, 'src/index.ts')],
-  outfile: path.join(appDir, 'dist/server.mjs'),
+  // restore.mjs is the restore CLI; the desktop app runs it while the server is stopped (T.4).
+  entryPoints: {
+    server: path.join(serverDir, 'src/index.ts'),
+    restore: path.join(serverDir, 'src/restore-cli.ts'),
+  },
+  outdir: path.join(appDir, 'dist'),
+  outExtension: { '.js': '.mjs' },
   bundle: true,
   platform: 'node',
   target: `node${NODE_VERSION.split('.')[0]}`,
