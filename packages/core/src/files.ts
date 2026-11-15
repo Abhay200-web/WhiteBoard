@@ -16,3 +16,9 @@ export const fileSchema = z.object({
   createdAt: z.number().int(),
 });
 export type FileInfo = z.infer<typeof fileSchema>;
+
+/**
+ * `POST /files/:id/link`: a short-lived address of the file's content (path on the Host) that
+ * needs no sign-in header, for `<img>`, `<video>` and the PDF viewer, which cannot send one.
+ */
+export const fileLinkSchema = z.object({ url: z.string(), expiresAt: z.number().int() });

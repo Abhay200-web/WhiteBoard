@@ -20,5 +20,6 @@ afterEach(() => {
   cleanup();
   server.resetHandlers();
   localStorage.clear();
+  delete (window as { whiteboardDesktop?: unknown }).whiteboardDesktop; // see test/desktop.ts
 });
 afterAll(() => server.close());

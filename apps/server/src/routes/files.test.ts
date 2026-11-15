@@ -4,8 +4,9 @@ import path from 'node:path';
 
 import { hostSettings } from '@whiteboard/db';
 import sharp from 'sharp';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { createFileLinks, LINK_TTL_MS } from '../files/links';
 import { bearer, createTestHost, seedUser, setupOwner, type TestHost } from '../test-helpers';
 
 let host: TestHost;
@@ -186,6 +187,81 @@ describe('GET /files/:id/content', () => {
       .toBuffer();
     const id = (await upload(owner.token, 'big.jpg', big)).json().id as string;
     expect(Buffer.compare((await get(id)).rawPayload, big)).toBe(0);
+  });
+});
+
+describe('file links (POST /files/:id/link, GET /files/:id/stream)', () => {
+  const link = (id: string, token = owner.token) =>
+    host.app.inject({ method: 'POST', url: `/files/${id}/link`, headers: bearer(token) });
+  // No Authorization header: media tags cannot send one.
+  const stream = (url: string, headers: Record<string, string> = {}) =>
+    host.app.inject({ method: 'GET', url, headers });
+
+  it('gives a link only to people who may read the file', async () => {
+    const author = await seedUser(host.db, owner.workspaceId, 'member');
+    const other = await seedUser(host.db, owner.workspaceId, 'member');
+    const id = (await upload(author.token, 'cut.pdf', pdf)).json().id as string;
+
+    const mine = await link(id, author.token);
+    expect(mine.statusCode).toBe(200);
+    expect(mine.json().url).toMatch(new RegExp(`^/files/${id}/stream\\?expires=\\d+&sig=`));
+    expect(mine.json().expiresAt).toBeGreaterThan(Date.now() + 59 * 60_000);
+    expect((await link(id, other.token)).statusCode).toBe(404);
+    expect((await host.app.inject({ method: 'POST', url: `/files/${id}/link` })).statusCode).toBe(
+      401,
+    );
+  });
+
+  it('streams the file through the link without a session, with byte ranges', async () => {
+    const id = (await upload(owner.token, 'digits.txt', Buffer.from('0123456789'))).json()
+      .id as string;
+    const { url } = (await link(id)).json() as { url: string };
+    const whole = await stream(url);
+    expect(whole.statusCode).toBe(200);
+    expect(whole.body).toBe('0123456789');
+    const part = await stream(url, { range: 'bytes=2-4' });
+    expect(part.statusCode).toBe(206);
+    expect(part.body).toBe('234');
+  });
+
+  it('refuses a changed, borrowed or unsigned link', async () => {
+    const a = (await upload(owner.token, 'a.txt', Buffer.from('aaa'))).json().id as string;
+    const b = (await upload(owner.token, 'b.txt', Buffer.from('bbb'))).json().id as string;
+    const { url } = (await link(a)).json() as { url: string };
+    const { searchParams } = new URL(url, 'http://host');
+    const expires = Number(searchParams.get('expires'));
+    const sig = searchParams.get('sig')!;
+
+    const refused = [
+      `/files/${b}/stream?expires=${expires}&sig=${sig}`, // another file
+      `/files/${a}/stream?expires=${expires + 1000}&sig=${sig}`, // longer life
+      `/files/${a}/stream?expires=${expires}&sig=${sig.slice(0, -2)}xx`, // forged
+      `/files/${a}/stream?expires=${expires}`, // no signature
+      `/files/${a}/stream`,
+    ];
+    for (const bad of refused) {
+      const res = await stream(bad);
+      expect(res.statusCode, bad).toBe(403);
+      expect(res.json().error).toBe('link_expired');
+    }
+  });
+
+  it('stops working after an hour, and when the Host restarts', async () => {
+    const id = (await upload(owner.token, 'a.txt', Buffer.from('aaa'))).json().id as string;
+    const { url } = (await link(id)).json() as { url: string };
+    const now = Date.now();
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(now + LINK_TTL_MS + 1);
+    try {
+      expect((await stream(url)).statusCode).toBe(403);
+    } finally {
+      clock.mockRestore();
+    }
+    expect((await stream(url)).statusCode).toBe(200);
+
+    // A new key on every start: the same link from another (restarted) Host is refused.
+    const restarted = createFileLinks();
+    const { searchParams } = new URL(url, 'http://host');
+    expect(restarted.verify(id, searchParams.get('expires'), searchParams.get('sig'))).toBe(false);
   });
 });
 

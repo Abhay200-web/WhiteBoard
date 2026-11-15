@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 
-import { api, getToken, onTokenChange, setToken } from '../lib/api';
+import { api, ApiError, getToken, onTokenChange, setToken } from '../lib/api';
 
 interface AuthValue {
   /** `undefined` while loading, `null` when signed out. */
@@ -29,7 +29,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     queryKey: ['me', token],
     enabled: token !== null,
     queryFn: () => api('/auth/me', { schema: sessionUserSchema }),
-    retry: false,
+    // An ended session clears the token (401). An unreachable Host (still starting, or off) says
+    // nothing about the session, so ask again instead of treating it as signed out.
+    retry: (_count, error) => error instanceof ApiError && error.status === 0,
+    retryDelay: 1_000,
   });
 
   const startSession = useCallback(
