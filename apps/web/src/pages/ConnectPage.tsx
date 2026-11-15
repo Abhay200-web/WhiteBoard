@@ -5,6 +5,7 @@ import { Link, useNavigate } from 'react-router';
 
 import { AuthShell, FormError } from '../components/AuthShell';
 import { getHostUrl, setHostUrl, setToken } from '../lib/api';
+import { desktopBridge } from '../lib/desktop';
 import { discoverHosts, normalizeHostAddress, probeHost } from '../lib/hostAddress';
 
 /** Choose which Host this PC talks to: discovered on the LAN, or typed by hand. */
@@ -48,24 +49,43 @@ export function ConnectPage() {
       title="Connect to a Host"
       subtitle="The Host is the office PC that stores your projects."
     >
-      {discovered.data && discovered.data.length > 0 && (
+      {/* Only the desktop app can search the network (mDNS); a browser just types the address. */}
+      {desktopBridge() && (
         <section aria-label="Hosts found on this network" className="mb-6">
-          <h2 className="mb-2 text-sm font-medium">Found on this network</h2>
-          <ul className="flex flex-col gap-2">
-            {discovered.data.map((host) => (
-              <li key={host.url}>
-                <Button
-                  variant="secondary"
-                  className="w-full justify-between"
-                  onClick={() => connect.mutate(host.url)}
-                  disabled={connect.isPending}
-                >
-                  <span>{host.name}</span>
-                  <span className="text-muted">{host.url.replace(/^https?:\/\//, '')}</span>
-                </Button>
-              </li>
-            ))}
-          </ul>
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="text-sm font-medium">Found on this network</h2>
+            <button
+              type="button"
+              className="text-sm text-accent underline disabled:opacity-50"
+              onClick={() => void discovered.refetch()}
+              disabled={discovered.isFetching}
+            >
+              Search again
+            </button>
+          </div>
+          {discovered.isFetching ? (
+            <p className="text-sm text-muted">Searching the network...</p>
+          ) : !discovered.data?.length ? (
+            <p className="text-sm text-muted">
+              No Host found. Check that the Host PC is on, or type its address below.
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-2">
+              {discovered.data.map((host) => (
+                <li key={host.url}>
+                  <Button
+                    variant="secondary"
+                    className="w-full justify-between"
+                    onClick={() => connect.mutate(host.url)}
+                    disabled={connect.isPending}
+                  >
+                    <span>{host.name}</span>
+                    <span className="text-muted">{host.url.replace(/^https?:\/\//, '')}</span>
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       )}
       <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">

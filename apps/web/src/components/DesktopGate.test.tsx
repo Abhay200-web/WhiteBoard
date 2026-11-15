@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -12,14 +12,16 @@ const LOCAL_HOST = 'http://127.0.0.1:47800';
 const desktopWindow = window as unknown as { whiteboardDesktop?: DesktopBridge };
 
 /** Stands in for the desktop app's bridge, remembering the chosen mode like the real one. */
-function fakeDesktop(mode: DesktopMode | null, startHost = vi.fn(async () => LOCAL_HOST)) {
+function fakeDesktop(mode: DesktopMode | null, overrides: Partial<DesktopBridge> = {}) {
   let saved = mode;
   const bridge = {
     getMode: vi.fn(async () => saved),
     setMode: vi.fn(async (next: DesktopMode) => {
       saved = next;
     }),
-    startHost,
+    startHost: vi.fn(async () => LOCAL_HOST),
+    discoverHosts: vi.fn(async () => []),
+    ...overrides,
   };
   desktopWindow.whiteboardDesktop = bridge;
   return bridge;
@@ -86,12 +88,47 @@ describe('desktop app first run', () => {
     const startHost = vi.fn(async (): Promise<string> => {
       throw 'The Host server did not start. Details: C:\\logs\\server.log';
     });
-    fakeDesktop('host', startHost);
+    fakeDesktop('host', { startHost });
     const user = userEvent.setup();
     renderApp('/');
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Details: C:\\logs\\server.log');
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     expect(startHost).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('desktop app: finding the Host on the network', () => {
+  it('lists the Hosts it finds and connects with one click', async () => {
+    const OFFICE = 'http://192.168.1.20:47800';
+    server.use(
+      http.get(`${OFFICE}/host/info`, () =>
+        HttpResponse.json({ workspaceName: 'Studio', serverVersion: '0.1.0', setupDone: true }),
+      ),
+      http.get(`${OFFICE}/auth/me`, () =>
+        HttpResponse.json({ error: 'unauthorized', message: 'Sign in required' }, { status: 401 }),
+      ),
+    );
+    fakeDesktop('client', {
+      discoverHosts: vi.fn(async () => [{ name: 'Whiteboard on OFFICE-PC', url: OFFICE }]),
+    });
+    const user = userEvent.setup();
+    renderApp('/');
+
+    const found = await screen.findByRole('region', { name: 'Hosts found on this network' });
+    await user.click(await within(found).findByRole('button', { name: /Whiteboard on OFFICE-PC/ }));
+
+    expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
+    expect(getHostUrl()).toBe(OFFICE);
+  });
+
+  it('says when nothing answers, and searches again on request', async () => {
+    const bridge = fakeDesktop('client');
+    const user = userEvent.setup();
+    renderApp('/connect');
+
+    expect(await screen.findByText(/No Host found/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Search again' }));
+    await waitFor(() => expect(bridge.discoverHosts).toHaveBeenCalledTimes(2));
   });
 });

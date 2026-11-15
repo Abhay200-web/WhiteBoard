@@ -38,7 +38,7 @@ export interface DiscoveredHost {
  */
 export async function discoverHosts(): Promise<DiscoveredHost[]> {
   const bridge = desktopBridge();
-  if (!bridge?.discoverHosts) return [];
+  if (!bridge) return [];
   try {
     return await bridge.discoverHosts();
   } catch {

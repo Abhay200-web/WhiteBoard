@@ -1,7 +1,9 @@
-// Whiteboard desktop shell (Step T.2). Asks once whether this PC is the Host or connects to one,
-// runs the Host server in Host mode, and keeps a tray icon. The window shows the web app (apps/web).
+// Whiteboard desktop shell (Step T). Asks once whether this PC is the Host or connects to one,
+// runs the Host server in Host mode, finds Hosts on the network, and keeps a tray icon.
+// The window shows the web app (apps/web).
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod discovery;
 mod host;
 
 use std::fs;
@@ -21,6 +23,7 @@ window.whiteboardDesktop = Object.freeze({
   getMode: () => window.__TAURI__.core.invoke('get_mode'),
   setMode: (mode) => window.__TAURI__.core.invoke('set_mode', { mode }),
   startHost: () => window.__TAURI__.core.invoke('start_host'),
+  discoverHosts: () => window.__TAURI__.core.invoke('discover_hosts'),
 });
 "#;
 
@@ -89,6 +92,14 @@ async fn start_host(app: AppHandle) -> Result<String, String> {
     }
 }
 
+/// Hosts announced on the office network, as `[{ name, url }]`. Listens for 3 seconds.
+#[tauri::command]
+async fn discover_hosts() -> Result<Vec<serde_json::Value>, String> {
+    tauri::async_runtime::spawn_blocking(|| discovery::discover(Duration::from_secs(3)))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
 fn show_main(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.unminimize();
@@ -119,7 +130,12 @@ fn main() {
             show_main(app)
         }))
         .manage(Arc::new(HostServer::default()))
-        .invoke_handler(tauri::generate_handler![get_mode, set_mode, start_host])
+        .invoke_handler(tauri::generate_handler![
+            get_mode,
+            set_mode,
+            start_host,
+            discover_hosts
+        ])
         .setup(|app| {
             WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
                 .title("Whiteboard")

@@ -9,7 +9,8 @@ export interface DesktopBridge {
   setMode(mode: DesktopMode): Promise<void>;
   /** Host mode: starts this PC's Host server, waits until it answers, and returns its address. */
   startHost(): Promise<string>;
-  discoverHosts?(): Promise<DiscoveredHost[]>;
+  /** Hosts announced on the office network (listens for a few seconds). */
+  discoverHosts(): Promise<DiscoveredHost[]>;
 }
 
 /** The desktop bridge, or `undefined` in a plain browser (dev, E2E). */
