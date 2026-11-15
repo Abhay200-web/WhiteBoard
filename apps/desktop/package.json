@@ -5,11 +5,15 @@
   "type": "module",
   "description": "Tauri 2 shell: Host/Client mode, server sidecar, tray, auto-start, notifications, installer",
   "scripts": {
+    "sidecar:build": "tsx scripts/build-sidecar.ts",
+    "sidecar:smoke": "tsx scripts/smoke-sidecar.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
   },
   "devDependencies": {
-    "@whiteboard/config": "workspace:*"
+    "@whiteboard/config": "workspace:*",
+    "esbuild": "0.28.2",
+    "tsx": "4.23.15"
   }
 }

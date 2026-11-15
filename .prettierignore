@@ -3,6 +3,7 @@ dist/
 .turbo/
 target/
 coverage/
+apps/desktop/sidecar/
 .data/
 docs/
 packages/db/migrations/
