@@ -1,35 +1,12 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { getHostUrl, getToken } from '../lib/api';
-import type { DesktopBridge, DesktopMode } from '../lib/desktop';
+import { fakeDesktop, LOCAL_HOST } from '../test/desktop';
 import { OWNER, renderApp } from '../test/render';
 import { server } from '../test/setup';
-
-const LOCAL_HOST = 'http://127.0.0.1:47800';
-const desktopWindow = window as unknown as { whiteboardDesktop?: DesktopBridge };
-
-/** Stands in for the desktop app's bridge, remembering the chosen mode like the real one. */
-function fakeDesktop(mode: DesktopMode | null, overrides: Partial<DesktopBridge> = {}) {
-  let saved = mode;
-  const bridge = {
-    getMode: vi.fn(async () => saved),
-    setMode: vi.fn(async (next: DesktopMode) => {
-      saved = next;
-    }),
-    startHost: vi.fn(async () => LOCAL_HOST),
-    discoverHosts: vi.fn(async () => []),
-    ...overrides,
-  };
-  desktopWindow.whiteboardDesktop = bridge;
-  return bridge;
-}
-
-afterEach(() => {
-  delete desktopWindow.whiteboardDesktop;
-});
 
 describe('desktop app first run', () => {
   it('sets this PC up as the Host, starts its server and opens workspace setup', async () => {

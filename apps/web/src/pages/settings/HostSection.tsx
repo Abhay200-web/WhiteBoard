@@ -3,16 +3,18 @@ import {
   backupManifestSchema,
   backupStatusSchema,
   hostSettingsSchema,
+  type BackupInfo,
   type BackupStatus,
   type HostSettings,
 } from '@whiteboard/core';
-import { Button, Card, Field, Input, Spinner } from '@whiteboard/ui';
+import { Button, Card, Field, Input, Modal, Spinner } from '@whiteboard/ui';
 import { useState, type FormEvent } from 'react';
 import { Navigate } from 'react-router';
 
 import { useAuth } from '../../auth/AuthProvider';
 import { FormError } from '../../components/AuthShell';
 import { api, ApiError } from '../../lib/api';
+import { desktopBridge, desktopErrorText, useDesktopMode } from '../../lib/desktop';
 
 const MB = 1024 * 1024;
 
@@ -135,26 +137,124 @@ function StorageForm({ settings }: { settings: HostSettings }) {
   );
 }
 
-function RestoreCard() {
+const KEPT_NOTE = (
+  <>
+    Your current data is kept in a <code>restore-previous-...</code> folder, so nothing is deleted.
+  </>
+);
+
+/**
+ * In the Host PC's desktop app: pick a backup and restore it (the app stops the server, restores,
+ * and starts it again). On a client PC: where to do it. In a browser (dev): the command.
+ */
+function RestoreCard({ status }: { status: BackupStatus }) {
+  const mode = useDesktopMode();
+  const [chosen, setChosen] = useState<BackupInfo | null>(null);
+  const restore = useMutation({
+    mutationFn: (name: string) => desktopBridge()!.restoreBackup(status.backupDir, name),
+  });
+
+  if (mode.data !== 'host') {
+    return (
+      <Card>
+        <h2 className="font-semibold">Restore</h2>
+        {mode.data === 'client' ? (
+          <p className="mt-2 text-sm text-muted">
+            Backups are restored on the Host PC: open Whiteboard there and go to Settings &gt; Host.
+          </p>
+        ) : (
+          <>
+            <p className="mt-2 text-sm text-muted">
+              Restoring replaces everything on a Host, so it is done with the Host stopped. Stop the
+              Host, then run this in the Whiteboard folder (use the backup folder you want to go
+              back to):
+            </p>
+            <pre className="mt-2 overflow-x-auto rounded-md bg-surface-2 p-3 text-xs">
+              pnpm --filter @whiteboard/server restore &lt;backup folder&gt; --replace
+            </pre>
+            <p className="mt-2 text-sm text-muted">{KEPT_NOTE}</p>
+          </>
+        )}
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <h2 className="font-semibold">Restore</h2>
       <p className="mt-2 text-sm text-muted">
-        Restoring replaces everything on a Host, so it is done with the Host stopped. Stop the Host,
-        then run this in the Whiteboard folder (use the backup folder you want to go back to):
+        Go back to a backup. Whiteboard stops for a moment while it restores. {KEPT_NOTE}
       </p>
-      <pre className="mt-2 overflow-x-auto rounded-md bg-surface-2 p-3 text-xs">
-        pnpm --filter @whiteboard/server restore &lt;backup folder&gt; --replace
-      </pre>
-      <p className="mt-2 text-sm text-muted">
-        Your current data is kept in a <code>restore-previous-...</code> folder, so nothing is
-        deleted.
-      </p>
+      {status.backups.length === 0 ? (
+        <p className="mt-3 text-sm text-muted">There are no backups yet.</p>
+      ) : (
+        <ul aria-label="Backups to restore" className="mt-3 divide-y divide-line text-sm">
+          {status.backups.map((b) => (
+            <li key={b.name} className="flex items-center justify-between gap-4 py-1.5">
+              <span>
+                {formatDateTime(b.createdAt)}{' '}
+                <span className="text-muted">({KIND_LABEL[b.kind]})</span>
+              </span>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  restore.reset();
+                  setChosen(b);
+                }}
+              >
+                Restore
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {chosen && (
+        <Modal
+          title={restore.isSuccess ? 'Backup restored' : 'Restore this backup?'}
+          onClose={() => !restore.isPending && setChosen(null)}
+        >
+          {restore.isSuccess ? (
+            <div className="flex flex-col gap-4">
+              <p className="text-sm">
+                Whiteboard is back to how it was on {formatDateTime(chosen.createdAt)}.
+              </p>
+              <p className="text-xs break-all whitespace-pre-line text-muted">{restore.data}</p>
+              {/* Every page's data changed underneath; start again from a clean load. */}
+              <Button onClick={() => window.location.assign('/')}>Continue</Button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-4">
+              <p className="text-sm">
+                Whiteboard goes back to how it was on {formatDateTime(chosen.createdAt)}. Changes
+                made after that are set aside, and people who are connected see
+                &quot;Reconnecting&quot; for a moment. {KEPT_NOTE}
+              </p>
+              <FormError message={restore.error ? desktopErrorText(restore.error) : null} />
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="secondary"
+                  onClick={() => setChosen(null)}
+                  disabled={restore.isPending}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="danger"
+                  loading={restore.isPending}
+                  onClick={() => restore.mutate(chosen.name)}
+                >
+                  Restore
+                </Button>
+              </div>
+            </div>
+          )}
+        </Modal>
+      )}
     </Card>
   );
 }
 
-/** Backups, storage settings and restore help. Only the owner can change them. */
+/** Backups, storage settings and restore. Only the owner can change them. */
 export function HostSection() {
   const { user } = useAuth();
   const isOwner = user?.role === 'owner';
@@ -188,7 +288,7 @@ export function HostSection() {
     <div className="flex max-w-xl flex-col gap-6">
       <BackupCard status={backups.data} />
       <StorageForm settings={settings.data} />
-      <RestoreCard />
+      <RestoreCard status={backups.data} />
     </div>
   );
 }

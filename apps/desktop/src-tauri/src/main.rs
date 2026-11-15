@@ -24,6 +24,8 @@ window.whiteboardDesktop = Object.freeze({
   setMode: (mode) => window.__TAURI__.core.invoke('set_mode', { mode }),
   startHost: () => window.__TAURI__.core.invoke('start_host'),
   discoverHosts: () => window.__TAURI__.core.invoke('discover_hosts'),
+  restoreBackup: (backupDir, name) =>
+    window.__TAURI__.core.invoke('restore_backup', { backupDir, name }),
 });
 "#;
 
@@ -92,6 +94,34 @@ async fn start_host(app: AppHandle) -> Result<String, String> {
     }
 }
 
+/// Host mode only: stops the server, restores backup `name` from `backup_dir` (the current data is
+/// kept in `restore-previous-*`), and starts the server again, also when the restore failed.
+#[tauri::command]
+async fn restore_backup(
+    app: AppHandle,
+    backup_dir: String,
+    name: String,
+) -> Result<String, String> {
+    if read_mode(&app).as_deref() != Some("host") {
+        return Err("Backups can only be restored on the Host PC.".into());
+    }
+    if name.is_empty() || name.contains(['/', '\\']) || name.contains("..") {
+        return Err(format!("Not a backup name: {name}"));
+    }
+    let paths = server_paths(&app)?;
+    let backup = PathBuf::from(backup_dir).join(name);
+    let server = Arc::clone(app.state::<Arc<HostServer>>().inner());
+    tauri::async_runtime::spawn_blocking(move || {
+        server.stop();
+        let result = host::run_restore(&paths, &backup);
+        server.start(paths);
+        host::wait_until_ready(Duration::from_secs(120));
+        result
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// Hosts announced on the office network, as `[{ name, url }]`. Listens for 3 seconds.
 #[tauri::command]
 async fn discover_hosts() -> Result<Vec<serde_json::Value>, String> {
@@ -134,7 +164,8 @@ fn main() {
             get_mode,
             set_mode,
             start_host,
-            discover_hosts
+            discover_hosts,
+            restore_backup
         ])
         .setup(|app| {
             WebviewWindowBuilder::new(app, "main", WebviewUrl::default())

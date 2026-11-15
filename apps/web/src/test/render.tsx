@@ -1,8 +1,9 @@
 import { QueryClient } from '@tanstack/react-query';
-import { render } from '@testing-library/react';
+import { cleanup, render } from '@testing-library/react';
 import type { HostInfo, SessionUser } from '@whiteboard/core';
 import { http, HttpResponse } from 'msw';
 import { createMemoryRouter, RouterProvider } from 'react-router';
+import { afterEach } from 'vitest';
 
 import { Providers } from '../App';
 import { setToken } from '../lib/api';
@@ -40,11 +41,21 @@ export function mockHost(info: Partial<HostInfo> = {}, user: SessionUser | null 
   );
 }
 
+const clients: QueryClient[] = [];
+// Clearing cancels queries still retrying (the session check retries while the Host is
+// unreachable), so they cannot reach into the next test with its token. Unmount first: clearing
+// a mounted page makes it fetch again. (This hook runs before the one in setup.ts.)
+afterEach(() => {
+  cleanup();
+  clients.splice(0).forEach((client) => client.clear());
+});
+
 /** Renders the real route table at `path`. Pass `token` to start signed in. */
 export function renderApp(path = '/', token?: string) {
   if (token) setToken(token);
   const router = createMemoryRouter(routes, { initialEntries: [path] });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  clients.push(client);
   const view = render(
     <Providers client={client}>
       <RouterProvider router={router} />
