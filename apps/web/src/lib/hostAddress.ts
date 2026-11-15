@@ -1,5 +1,7 @@
 import { HOST_PORT, hostInfoSchema, type HostInfo } from '@whiteboard/core';
 
+import { desktopBridge } from './desktop';
+
 /**
  * Turns what a person types ("192.168.1.20", "office-pc:47800", "http://10.0.0.5") into a Host URL.
  * Returns `null` if it cannot be a valid address.
@@ -35,9 +37,7 @@ export interface DiscoveredHost {
  * returns results inside the desktop app, which exposes `window.whiteboardDesktop.discoverHosts`.
  */
 export async function discoverHosts(): Promise<DiscoveredHost[]> {
-  const bridge = (
-    window as unknown as { whiteboardDesktop?: { discoverHosts?: () => Promise<DiscoveredHost[]> } }
-  ).whiteboardDesktop;
+  const bridge = desktopBridge();
   if (!bridge?.discoverHosts) return [];
   try {
     return await bridge.discoverHosts();

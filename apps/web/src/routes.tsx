@@ -1,6 +1,7 @@
 import { Navigate, type RouteObject } from 'react-router';
 
 import { PublicOnly, RequireAdmin, RequireAuth } from './auth/guards';
+import { DesktopGate } from './components/DesktopGate';
 import { AppLayout } from './layouts/AppLayout';
 import { SettingsLayout } from './layouts/SettingsLayout';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
@@ -17,7 +18,7 @@ import { HostSection } from './pages/settings/HostSection';
 import { AccountSection, ConnectionSection } from './pages/settings/sections';
 import { SetupPage } from './pages/SetupPage';
 
-export const routes: RouteObject[] = [
+const pages: RouteObject[] = [
   { element: <PublicOnly page="setup" />, children: [{ path: '/setup', element: <SetupPage /> }] },
   { element: <PublicOnly page="login" />, children: [{ path: '/login', element: <LoginPage /> }] },
   { element: <PublicOnly page="join" />, children: [{ path: '/join', element: <JoinPage /> }] },
@@ -72,3 +73,5 @@ export const routes: RouteObject[] = [
   },
   { path: '*', element: <NotFoundPage /> },
 ];
+
+export const routes: RouteObject[] = [{ element: <DesktopGate />, children: pages }];

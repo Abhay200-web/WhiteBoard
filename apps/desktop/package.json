@@ -7,11 +7,14 @@
   "scripts": {
     "sidecar:build": "tsx scripts/build-sidecar.ts",
     "sidecar:smoke": "tsx scripts/smoke-sidecar.ts",
+    "tauri:dev": "tauri dev",
+    "installer": "tauri build",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "2.12.4",
     "@whiteboard/config": "workspace:*",
     "esbuild": "0.28.2",
     "tsx": "4.23.15"

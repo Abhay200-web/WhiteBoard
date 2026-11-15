@@ -1,6 +1,6 @@
 # ADR 0002 — Ship the Host server as a pinned node.exe plus a bundled server folder
 
-- **Status:** Accepted for the server half; the installer half is checked in Step T.2
+- **Status:** Accepted. Installer verified on the dev PC (Step T.2); a clean-PC install is still to do
 - **Date:** 2026-11-15
 - **Deciders:** Owner, backend developer
 
@@ -32,7 +32,7 @@ ADR 0001 says the Tauri app starts the Node server as a sidecar on the Host PC. 
 - ⚠️ A new dependency that loads code at run time (a native module, or a hidden `import()` like `file-type`'s) must be added to `EXTERNAL` in the build script. The smoke test catches the cases it exercises, not all of them.
 - ⚠️ `file-type`'s own dependencies (`strtok3` and others) are resolved by npm when the sidecar is built, not pinned by our lockfile.
 - ⚠️ About 42 MB of the installer is Node itself. That is acceptable for an office LAN install.
-- ⏳ **Still to prove (T.2):** Tauri's installer includes the folder (`bundle.resources`, with `node.exe` as an external binary or a resource), and the installed app starts it on a clean PC. That needs Rust, which is not set up yet. `restore-cli` will be bundled the same way for T.4.
+- ✅ **Installer (T.2, 2026-11-15):** the whole `sidecar/` folder, `node.exe` included, ships as a Tauri resource (`bundle.resources`), not as an "external binary", so it stays one folder. The `.msi` is 44.9 MB, and the built app starts the server from it. Still to do: install it on a clean PC. `restore-cli` will be bundled the same way for T.4.
 
 ## Alternatives considered
 - **Node SEA / `pkg` single executable:** see the findings above.
