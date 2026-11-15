@@ -10,9 +10,10 @@ import {
   type Db,
 } from '@whiteboard/db';
 import { and, eq } from 'drizzle-orm';
-import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
+import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 
 import { authenticate, requireRole, sendError, ALL_ROLES } from '../plugins/auth';
+import { createFileLinks } from '../files/links';
 import { isAdmin, type Actor } from '../projects/access';
 import {
   UnsupportedFileError,
@@ -87,6 +88,7 @@ export const fileRoutes: FastifyPluginAsync<{ db: Db; dataDir: string }> = async
   // No global size limit here: the per-request limit comes from the host setting.
   await app.register(multipart, { limits: { files: 1, fields: 0, parts: 2 } });
   const signedIn = [authenticate(db), requireRole(ALL_ROLES)];
+  const links = createFileLinks();
 
   app.post('/files', { preHandler: signedIn }, async (request, reply) => {
     if (!request.isMultipart()) {
@@ -154,6 +156,30 @@ export const fileRoutes: FastifyPluginAsync<{ db: Db; dataDir: string }> = async
   app.get('/files/:id/content', { preHandler: signedIn }, async (request, reply) => {
     const row = findAccessible(request);
     if (!row) return sendError(reply, 404, 'not_found', 'File not found');
+    return sendContent(row, request, reply);
+  });
+
+  /** A link to the content for `<img>`, `<video>` and pdf.js; made only for people who may read it. */
+  app.post('/files/:id/link', { preHandler: signedIn }, async (request, reply) => {
+    const row = findAccessible(request);
+    if (!row) return sendError(reply, 404, 'not_found', 'File not found');
+    return links.create(row.id);
+  });
+
+  /** The content through a link from `POST /files/:id/link`; no sign-in header needed. */
+  app.get('/files/:id/stream', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { expires, sig } = request.query as { expires?: string; sig?: string };
+    if (!links.verify(id, expires, sig)) {
+      return sendError(reply, 403, 'link_expired', 'This file link has expired');
+    }
+    const row = db.select().from(files).where(eq(files.id, id)).get();
+    if (!row) return sendError(reply, 404, 'not_found', 'File not found');
+    return sendContent(row, request, reply);
+  });
+
+  /** The file's bytes, the whole file or one `Range`, so video can play while it loads. */
+  async function sendContent(row: FileRow, request: FastifyRequest, reply: FastifyReply) {
     const full = resolveStoragePath(dataDir, row.storagePath);
     if (!(await fileExists(full))) return sendError(reply, 404, 'not_found', 'File not found');
 
@@ -182,5 +208,5 @@ export const fileRoutes: FastifyPluginAsync<{ db: Db; dataDir: string }> = async
         .send(openRead(full, { start: range.start, end: range.end }));
     }
     return reply.header('content-length', row.size).send(openRead(full));
-  });
+  }
 };

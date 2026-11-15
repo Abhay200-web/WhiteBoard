@@ -190,41 +190,54 @@ describe('previews', () => {
     expect(previewKind('text/plain')).toBe('other');
   });
 
-  it('shows an image fetched with the session token', async () => {
+  const LINK = '/files/f1/stream?expires=1&sig=abc';
+
+  it('shows an image from a file link asked for with the session token', async () => {
     let auth: string | null = null;
     server.use(
-      http.get('*/files/f1/content', ({ request }) => {
+      http.post('*/files/f1/link', ({ request }) => {
         auth = request.headers.get('authorization');
-        return new HttpResponse('img', { headers: { 'content-type': 'image/png' } });
+        return HttpResponse.json({ url: LINK, expiresAt: 1 });
       }),
     );
     renderPreview({ name: 'logo.png', mimeType: 'image/png' });
-    expect(await screen.findByRole('img', { name: 'logo.png' })).toHaveAttribute(
-      'src',
-      'blob:test',
-    );
+    expect(await screen.findByRole('img', { name: 'logo.png' })).toHaveAttribute('src', LINK);
     expect(auth).toBe('Bearer tok');
   });
 
-  it('shows a video player and the PDF viewer', async () => {
-    server.use(http.get('*/files/f1/content', () => new HttpResponse('data')));
+  it('streams a video from the link and gives the PDF viewer the link', async () => {
+    server.use(http.post('*/files/f1/link', () => HttpResponse.json({ url: LINK, expiresAt: 1 })));
     const video = renderPreview({ name: 'cut.mp4', mimeType: 'video/mp4' });
-    expect(await screen.findByLabelText('cut.mp4')).toBeInstanceOf(HTMLVideoElement);
+    const player = await screen.findByLabelText('cut.mp4');
+    expect(player).toBeInstanceOf(HTMLVideoElement);
+    expect(player).toHaveAttribute('src', LINK);
     video.unmount();
     renderPreview({ name: 'brief.pdf', mimeType: 'application/pdf' });
     expect(await screen.findByText('PDF viewer: brief.pdf')).toBeInTheDocument();
   });
 
-  it('offers a download for other types', async () => {
-    server.use(http.get('*/files/f1/content', () => new HttpResponse('a,b')));
+  it('offers a download for other types, fetching the file only when clicked', async () => {
+    let fetched = 0;
+    server.use(
+      http.get('*/files/f1/content', () => {
+        fetched += 1;
+        return new HttpResponse('a,b');
+      }),
+    );
+    const save = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    const user = userEvent.setup();
     renderPreview({ name: 'data.csv', mimeType: 'text/csv' });
     expect(await screen.findByText(/No preview/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Download data.csv' })).toBeInTheDocument();
+    expect(fetched).toBe(0);
+    await user.click(screen.getByRole('button', { name: 'Download data.csv' }));
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(fetched).toBe(1);
+    save.mockRestore();
   });
 
   it('explains when the file is not available', async () => {
     server.use(
-      http.get('*/files/f1/content', () =>
+      http.post('*/files/f1/link', () =>
         HttpResponse.json({ error: 'not_found', message: 'File not found' }, { status: 404 }),
       ),
     );

@@ -1,8 +1,9 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { fileLinkSchema } from '@whiteboard/core';
 import { Button, Spinner } from '@whiteboard/ui';
 import { lazy, Suspense, useEffect, useMemo } from 'react';
 
-import { ApiError } from '../lib/api';
+import { api, ApiError, getHostUrl } from '../lib/api';
 import { fetchFileBlob } from '../lib/files';
 
 const PdfViewer = lazy(() => import('./PdfViewer'));
@@ -33,8 +34,9 @@ export function saveBlob(blob: Blob, name: string) {
 }
 
 /**
- * Shows an image, PDF or video from the Host. Other types get a Download button. The file is
- * fetched with the session token (media tags cannot send headers) and shown from memory.
+ * Shows an image, PDF or video from the Host. Other types get a Download button. Media tags cannot
+ * send the sign-in header, so the Host gives a short-lived link (1 hour); a video then streams
+ * with byte ranges instead of loading whole first. Download fetches the file only when clicked.
  */
 export function FilePreview({
   fileId,
@@ -46,54 +48,79 @@ export function FilePreview({
   mimeType: string;
 }) {
   const kind = previewKind(mimeType);
-  const file = useQuery({
-    queryKey: ['file-content', fileId],
-    queryFn: ({ signal }) => fetchFileBlob(`/files/${fileId}/content`, signal),
-    staleTime: Infinity,
-    gcTime: 60_000,
+  const link = useQuery({
+    queryKey: ['file-link', fileId],
+    queryFn: () => api(`/files/${fileId}/link`, { method: 'POST', schema: fileLinkSchema }),
+    enabled: kind !== 'other',
+    // A new link changes the src and restarts a playing video, so only renew it when the preview
+    // opens again after a while, well before the link runs out.
+    staleTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
-  const url = useObjectUrl(file.data);
+  const download = useMutation({
+    mutationFn: async () => saveBlob(await fetchFileBlob(`/files/${fileId}/content`), name),
+  });
 
-  if (file.isError) {
+  const downloadButton = (
+    <>
+      <Button
+        variant="secondary"
+        loading={download.isPending}
+        onClick={() => download.mutate()}
+        className="self-start"
+      >
+        Download {name}
+      </Button>
+      {download.isError && (
+        <p role="alert" className="text-sm text-danger">
+          Could not download this file.
+        </p>
+      )}
+    </>
+  );
+  if (kind === 'other') {
+    return (
+      <div className="flex flex-col gap-2 text-sm">
+        <p className="text-muted">No preview for this type of file.</p>
+        {downloadButton}
+      </div>
+    );
+  }
+  if (link.isError) {
     return (
       <p role="alert" className="text-sm text-danger">
-        {file.error instanceof ApiError && file.error.status === 404
+        {link.error instanceof ApiError && link.error.status === 404
           ? 'This file is not available to you.'
           : 'Could not load this file.'}
       </p>
     );
   }
-  if (file.isPending) return <Spinner label={`Loading ${name}`} />;
+  if (link.isPending) return <Spinner label={`Loading ${name}`} />;
 
-  const download = (
-    <Button variant="secondary" onClick={() => saveBlob(file.data, name)}>
-      Download {name}
-    </Button>
-  );
-  if (kind === 'image' && url) {
+  const url = `${getHostUrl()}${link.data.url}`;
+  if (kind === 'image') {
     return (
       <img src={url} alt={name} className="max-h-[70vh] max-w-full rounded-md border border-line" />
     );
   }
-  if (kind === 'video' && url) {
+  if (kind === 'video') {
     return (
-      <video src={url} controls aria-label={name} className="max-h-[70vh] max-w-full rounded-md" />
-    );
-  }
-  if (kind === 'pdf') {
-    return (
-      <div className="flex flex-col gap-2">
-        <Suspense fallback={<Spinner label="Loading PDF viewer" />}>
-          <PdfViewer blob={file.data} name={name} />
-        </Suspense>
-        {download}
-      </div>
+      <video
+        src={url}
+        controls
+        preload="metadata"
+        aria-label={name}
+        className="max-h-[70vh] max-w-full rounded-md"
+      />
     );
   }
   return (
-    <div className="flex flex-col gap-2 text-sm">
-      <p className="text-muted">No preview for this type of file.</p>
-      {download}
+    <div className="flex flex-col gap-2">
+      <Suspense fallback={<Spinner label="Loading PDF viewer" />}>
+        <PdfViewer url={url} name={name} />
+      </Suspense>
+      {downloadButton}
     </div>
   );
 }

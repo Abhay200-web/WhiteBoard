@@ -40,7 +40,18 @@ export function buildApp({
   authRateLimit = { max: 10, timeWindow: '1 minute' },
   hub = new EventHub(),
 }: AppOptions): FastifyInstance {
-  const app = Fastify({ logger });
+  const app = Fastify({
+    logger: logger && {
+      serializers: {
+        // File links carry their signature in the URL (routes/files.ts); keep it out of the log.
+        req: (req: { method: string; url: string; ip: string }) => ({
+          method: req.method,
+          url: req.url.replace(/([?&]sig=)[^&]*/, '$1hidden'),
+          remoteAddress: req.ip,
+        }),
+      },
+    },
+  });
   // The web UI runs on another origin (desktop app / dev server). Auth is a bearer header, not
   // cookies, so allowing any origin does not expose sessions.
   app.register(cors, {

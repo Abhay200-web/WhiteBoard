@@ -58,8 +58,8 @@ export function uploadFile(file: File, { onProgress, signal }: UploadControls): 
 }
 
 /**
- * Downloads a protected file (`/files/:id/content` or `/thumbnail`) with the session token, since
- * `<img src>` and `<video src>` cannot send an Authorization header. Returns a Blob.
+ * Downloads a protected file (`/files/:id/content` or `/thumbnail`) with the session token, for
+ * saving a file and for thumbnails. Previews use a file link instead (see `FilePreview`).
  */
 export async function fetchFileBlob(path: string, signal?: AbortSignal): Promise<Blob> {
   const token = getToken();
