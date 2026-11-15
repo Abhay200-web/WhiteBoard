@@ -5,8 +5,11 @@ import { useEffect, useRef, useState } from 'react';
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
-/** Shows a PDF page by page with pdf.js. Loaded lazily, so the app does not pay for it up front. */
-export default function PdfViewer({ blob, name }: { blob: Blob; name: string }) {
+/**
+ * Shows a PDF page by page with pdf.js. Loaded lazily, so the app does not pay for it up front.
+ * `url` is a file link; pdf.js reads it in byte ranges, so a big PDF shows its first page early.
+ */
+export default function PdfViewer({ url, name }: { url: string; name: string }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const [doc, setDoc] = useState<pdfjs.PDFDocumentProxy | null>(null);
   const [page, setPage] = useState(1);
@@ -14,16 +17,10 @@ export default function PdfViewer({ blob, name }: { blob: Blob; name: string }) 
 
   useEffect(() => {
     let cancelled = false;
-    let loadingTask: pdfjs.PDFDocumentLoadingTask | null = null;
-    void blob
-      .arrayBuffer()
-      .then((data) => {
-        if (cancelled) return null;
-        loadingTask = pdfjs.getDocument({ data });
-        return loadingTask.promise;
-      })
+    const loadingTask = pdfjs.getDocument({ url });
+    loadingTask.promise
       .then((pdf) => {
-        if (pdf && !cancelled) {
+        if (!cancelled) {
           setDoc(pdf);
           setPage(1);
         }
@@ -31,9 +28,9 @@ export default function PdfViewer({ blob, name }: { blob: Blob; name: string }) 
       .catch(() => !cancelled && setError(true));
     return () => {
       cancelled = true;
-      void loadingTask?.destroy();
+      void loadingTask.destroy();
     };
-  }, [blob]);
+  }, [url]);
 
   useEffect(() => {
     if (!doc || !canvas.current) return;

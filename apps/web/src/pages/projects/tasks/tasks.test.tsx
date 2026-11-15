@@ -2,7 +2,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Comment, SessionUser, Task, TaskHistoryEntry, TaskStatus } from '@whiteboard/core';
 import { delay, http, HttpResponse } from 'msw';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { mockHost, OWNER, renderApp } from '../../../test/render';
 import { server } from '../../../test/setup';
@@ -410,13 +410,10 @@ describe('task drawer: closing and refused edits', () => {
   });
 
   it('closes only a file preview, not the drawer under it, on Escape', async () => {
-    URL.createObjectURL = vi.fn(() => 'blob:test');
-    URL.revokeObjectURL = vi.fn();
     const { user, panel } = await openDrawer();
     server.use(
-      http.get(
-        '*/files/f1/content',
-        () => new HttpResponse('img', { headers: { 'content-type': 'image/png' } }),
+      http.post('*/files/f1/link', () =>
+        HttpResponse.json({ url: '/files/f1/stream?expires=1&sig=x', expiresAt: 1 }),
       ),
     );
     // Attach a file by mocking the list the drawer shows.

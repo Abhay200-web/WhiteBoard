@@ -414,9 +414,8 @@ describe('project overview', () => {
       http.get('*/projects/p1', () => HttpResponse.json(detail())),
       http.get('*/projects/p1/files', () => HttpResponse.json(files)),
       http.get('*/people', () => HttpResponse.json([])),
-      http.get(
-        '*/files/f1/content',
-        () => new HttpResponse('img', { headers: { 'content-type': 'image/png' } }),
+      http.post('*/files/f1/link', () =>
+        HttpResponse.json({ url: '/files/f1/stream?expires=1&sig=x', expiresAt: 1 }),
       ),
       http.delete('*/projects/p1/files/f1', () => {
         files = [];
