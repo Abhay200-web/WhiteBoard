@@ -38,7 +38,7 @@ import { canManageProject, isAdmin } from '../projects/access';
 import type { EventHub } from '../events/hub';
 import { recordHistory } from '../projects/history';
 import { announceTaskChange, notify, taskAudience } from '../projects/notify';
-import { taskAccess } from '../projects/taskAccess';
+import { nextTaskKey, taskAccess } from '../projects/taskAccess';
 import { canAccessFile } from './files';
 
 type TaskRow = typeof tasks.$inferSelect;
@@ -67,14 +67,7 @@ export const taskRoutes: FastifyPluginAsync<{ db: Db; hub: EventHub }> = async (
       .where(and(eq(taskStatuses.id, statusId), eq(taskStatuses.projectId, projectId)))
       .get();
 
-  /** New cards and checklist items go to the end of their list. */
-  const nextTaskKey = (statusId: string) =>
-    SORT_STEP +
-    (db
-      .select({ max: sql<number | null>`max(${tasks.sortKey})` })
-      .from(tasks)
-      .where(eq(tasks.statusId, statusId))
-      .get()?.max ?? 0);
+  /** New checklist items go to the end of their list. */
   const nextSubtaskKey = (taskId: string) =>
     SORT_STEP +
     (db
@@ -276,7 +269,7 @@ export const taskRoutes: FastifyPluginAsync<{ db: Db; hub: EventHub }> = async (
           priority: b.priority,
           startAt: b.startAt != null ? new Date(b.startAt) : null,
           dueAt: b.dueAt != null ? new Date(b.dueAt) : null,
-          sortKey: nextTaskKey(status.id),
+          sortKey: nextTaskKey(db, status.id),
           createdBy: request.auth!.user.id,
           createdAt: now,
           updatedAt: now,
@@ -328,7 +321,7 @@ export const taskRoutes: FastifyPluginAsync<{ db: Db; hub: EventHub }> = async (
       if (!to) return badRequest(reply, 'Unknown status');
       const from = statusOf(task.projectId, task.statusId)!;
       if (!canMoveTask(from.kind, to.kind, isManager)) return refuseMove(reply, to.name);
-      sortKey ??= nextTaskKey(to.id);
+      sortKey ??= nextTaskKey(db, to.id);
       moved = { from: from.name, to: to.name };
     }
     const dueBefore = task.dueAt?.getTime() ?? null;

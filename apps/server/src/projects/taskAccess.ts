@@ -1,3 +1,4 @@
+import { SORT_STEP } from '@whiteboard/core';
 import {
   memberships,
   projectMembers,
@@ -7,13 +8,25 @@ import {
   tasks,
   type Db,
 } from '@whiteboard/db';
-import { and, eq, gt, inArray, isNull, or } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
 import { sendError } from '../plugins/auth';
 import { canManageProject, canViewProject } from './access';
 
 export type Need = 'view' | 'manage';
+
+/** Sort key for a card added to the end of a column (the Host and web both use gaps of SORT_STEP). */
+export function nextTaskKey(db: Db, statusId: string): number {
+  return (
+    SORT_STEP +
+    (db
+      .select({ max: sql<number | null>`max(${tasks.sortKey})` })
+      .from(tasks)
+      .where(eq(tasks.statusId, statusId))
+      .get()?.max ?? 0)
+  );
+}
 
 /**
  * Loaders and checks shared by the task, subtask and comment routes. Every route finds its

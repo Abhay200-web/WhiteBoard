@@ -243,6 +243,8 @@ function describeChange(e: TaskHistoryEntry): string {
       return e.to === null ? 'removed the due date' : `set the due date to ${formatDateTime(e.to)}`;
     case 'file':
       return `${e.added ? 'attached' : 'removed'} ${e.name}`;
+    case 'submitted':
+      return `sent ${e.name} v${e.number} for review`;
     case 'comment':
       return 'commented';
     case 'left': {

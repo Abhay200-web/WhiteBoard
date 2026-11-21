@@ -27,6 +27,7 @@ import { PRIORITY_LABEL, toDateTimeInput } from '../format';
 import { AddTitleForm } from './AddTitleForm';
 import { patchTask, tasksKey, useUpdateTask } from './queries';
 import { TaskComments, TaskHistory } from './TaskActivity';
+import { TaskDeliverables } from './TaskDeliverables';
 
 /**
  * Checklist. Managers add and delete items; managers and assignees tick them. `onChange` gets
@@ -316,6 +317,11 @@ export function TaskDrawer({
             canManage={canManage}
             onChange={() => void queryClient.invalidateQueries({ queryKey: tasksKey(project.id) })}
           />
+        </div>
+
+        <div>
+          <h3 className="text-sm font-medium">Deliverables</h3>
+          <TaskDeliverables taskId={task.id} projectId={project.id} canSubmit={isAssignee} />
         </div>
 
         <div>
