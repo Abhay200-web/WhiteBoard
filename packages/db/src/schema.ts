@@ -1,5 +1,6 @@
 // SQLite schema (spec §6). Timestamps are integer ms, ids are text (ULID).
 import {
+  DELIVERABLE_STATES,
   NOTIFICATION_KINDS,
   PROJECT_FILE_KINDS,
   PROJECT_MEMBER_ROLES,
@@ -8,7 +9,14 @@ import {
   TASK_STATUS_KINDS,
   WORKSPACE_ROLES,
 } from '@whiteboard/core';
-import { index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import {
+  index,
+  integer,
+  primaryKey,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from 'drizzle-orm/sqlite-core';
 
 export const users = sqliteTable('users', {
   id: text('id').primaryKey(),
@@ -277,6 +285,45 @@ export const taskFiles = sqliteTable(
     addedAt: integer('added_at', { mode: 'timestamp_ms' }).notNull(),
   },
   (t) => [primaryKey({ columns: [t.taskId, t.fileId] }), index('task_files_file_idx').on(t.fileId)],
+);
+
+/** What an artist delivers on a task (e.g. "Poster"). Each new file sent for it is a version. */
+export const deliverables = sqliteTable(
+  'deliverables',
+  {
+    id: text('id').primaryKey(),
+    taskId: text('task_id')
+      .notNull()
+      .references(() => tasks.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => users.id),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [index('deliverables_task_idx').on(t.taskId)],
+);
+
+/** One submitted file of a deliverable. `number` counts 1, 2, 3 per deliverable. */
+export const deliverableVersions = sqliteTable(
+  'deliverable_versions',
+  {
+    id: text('id').primaryKey(),
+    deliverableId: text('deliverable_id')
+      .notNull()
+      .references(() => deliverables.id, { onDelete: 'cascade' }),
+    number: integer('number').notNull(),
+    fileId: text('file_id')
+      .notNull()
+      .references(() => files.id),
+    note: text('note'),
+    state: text('state', { enum: DELIVERABLE_STATES }).notNull().default('pending'),
+    submittedBy: text('submitted_by')
+      .notNull()
+      .references(() => users.id),
+    submittedAt: integer('submitted_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [uniqueIndex('deliverable_versions_number_idx').on(t.deliverableId, t.number)],
 );
 
 /** Comments on a task (plain text). `mentions` is a JSON array of @-mentioned user ids. */
