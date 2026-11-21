@@ -144,7 +144,11 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ### Part 5 — Review flow, pins, desktop, release
 
-- [ ] 5.1 Deliverables + versions + submit-for-review
+- [x] 5.1 Deliverables + versions + submit-for-review — 2026-11-21, branch `feat/step-5-1-deliverables`
+  - [x] DB migration `0008_deliverables` (`deliverables`, `deliverable_versions`); core schemas and the `submitted` history event
+  - [x] API: `GET/POST /tasks/:id/deliverables`, `POST /deliverables/:id/versions` (assignee only; from To do / In progress / Changes requested; task moves to In review; file attached to the task; history; notifies the task's people)
+  - [x] Tests: `routes/deliverables.test.ts` (4 cases) — server 123/123; E2E 7/7
+  - [x] UI: "Deliverables" section in the task drawer (list with versions, submit form). Checked by typecheck and tests only; not yet clicked through by hand
 - [ ] 5.2 Reviews (approve / changes) + review screen + queue page
 - [ ] 5.3 Version compare (endpoint + side-by-side UI)
 - [ ] 5.4 Pins + pin comments + resolve

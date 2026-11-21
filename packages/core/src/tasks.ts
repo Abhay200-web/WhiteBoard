@@ -136,6 +136,51 @@ export const attachedFileListSchema = z.array(attachedFileSchema);
 
 export const attachTaskFileRequestSchema = z.object({ fileId: z.string().min(1) });
 
+// --- deliverables --------------------------------------------------------------------------
+
+/** Review state of one version. Only "pending" is set in Part 5.1; 5.2 sets the other two. */
+export const DELIVERABLE_STATES = ['pending', 'changes', 'approved'] as const;
+export type DeliverableState = (typeof DELIVERABLE_STATES)[number];
+
+export const deliverableVersionSchema = z.object({
+  id: z.string(),
+  number: z.number().int(),
+  fileId: z.string(),
+  name: z.string(),
+  mimeType: z.string(),
+  size: z.number().int(),
+  note: z.string().nullable(),
+  state: z.enum(DELIVERABLE_STATES),
+  submittedBy: z.string(),
+  submittedAt: z.number().int(),
+});
+export type DeliverableVersion = z.infer<typeof deliverableVersionSchema>;
+
+/** `GET /tasks/:id/deliverables`: each deliverable with its versions, oldest first. */
+export const deliverableSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  versions: z.array(deliverableVersionSchema),
+});
+export type Deliverable = z.infer<typeof deliverableSchema>;
+export const deliverableListSchema = z.array(deliverableSchema);
+
+export const createDeliverableRequestSchema = z.object({
+  name: z.string().trim().min(1, 'Name the deliverable').max(120),
+});
+
+/** `POST /deliverables/:id/versions`: the uploaded file and an optional note for the manager. */
+export const submitVersionRequestSchema = z.object({
+  fileId: z.string().min(1),
+  note: z
+    .string()
+    .trim()
+    .max(2000)
+    .transform((s) => s || null)
+    .nullable()
+    .optional(),
+});
+
 // --- comments ------------------------------------------------------------------------------
 
 /** A task comment: plain text. `mentions` are the user ids @-mentioned in it (project members). */
@@ -183,6 +228,8 @@ export const taskEventSchema = z.discriminatedUnion('event', [
     to: z.number().int().nullable(),
   }),
   z.object({ event: z.literal('file'), name: z.string(), added: z.boolean() }),
+  /** An artist sent version `number` of the deliverable `name` for review. */
+  z.object({ event: z.literal('submitted'), name: z.string(), number: z.number().int() }),
   z.object({ event: z.literal('comment') }),
   /**
    * The assignee `name` left the workspace. `to`: who took the task over (null: unassigned).
