@@ -87,6 +87,11 @@ export function TaskDeliverables({
                   {v.submittedBy}, {formatDateTime(v.submittedAt)} · {STATE_LABEL[v.state]}
                 </p>
                 {v.note && <p className="mt-1">{v.note}</p>}
+                {v.review?.summary && (
+                  <p className="mt-1">
+                    {v.review.reviewerName}: {v.review.summary}
+                  </p>
+                )}
               </li>
             ))}
           </ul>
@@ -115,7 +120,11 @@ export function TaskDeliverables({
           </Field>
           <FormError message={errorText(submit.error)} />
           {ready && (
-            <FileUploader upload={uploadFile} onUploaded={(info) => submit.mutate(info.id)} />
+            <FileUploader
+              multiple={false}
+              upload={uploadFile}
+              onUploaded={(info) => submit.mutate(info.id)}
+            />
           )}
         </div>
       )}

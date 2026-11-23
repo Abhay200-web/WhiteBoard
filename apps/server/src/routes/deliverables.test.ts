@@ -13,7 +13,13 @@ const PDF = Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n
 
 type Person = Awaited<ReturnType<typeof seedUser>>;
 type Status = { id: string; name: string; kind: string };
-type Version = { number: number; state: string; note: string | null; submittedBy: string };
+type Version = {
+  id: string;
+  number: number;
+  state: string;
+  note: string | null;
+  submittedBy: string;
+};
 type Deliverable = { id: string; name: string; versions: Version[] };
 type Task = { id: string; statusId: string };
 
@@ -24,8 +30,12 @@ let outsider: Person;
 let projectId: string;
 let statuses: Record<string, Status>;
 
-const call = (method: 'GET' | 'POST' | 'PATCH', url: string, token?: string, payload?: object) =>
-  host.app.inject({ method, url, payload, headers: token ? bearer(token) : undefined });
+const call = (
+  method: 'GET' | 'POST' | 'PATCH' | 'PUT',
+  url: string,
+  token?: string,
+  payload?: object,
+) => host.app.inject({ method, url, payload, headers: token ? bearer(token) : undefined });
 
 async function createTask(): Promise<Task> {
   const res = await call('POST', `/projects/${projectId}/tasks`, manager.token, {
@@ -171,5 +181,122 @@ describe('deliverables and versions', () => {
       (await call('POST', `/tasks/${task.id}/deliverables`, artist.token, { name: '  ' }))
         .statusCode,
     ).toBe(400);
+  });
+});
+
+describe('reviews', () => {
+  async function submit(taskId: string, token: string, file: string, deliverableId?: string) {
+    const id =
+      deliverableId ??
+      (
+        (
+          await call('POST', `/tasks/${taskId}/deliverables`, token, { name: 'Poster' })
+        ).json() as Deliverable
+      ).id;
+    const fileId = await uploadTestFile(host, token, file, PDF);
+    const res = await call('POST', `/deliverables/${id}/versions`, token, { fileId });
+    expect(res.statusCode).toBe(201);
+    return res.json() as Deliverable;
+  }
+
+  const review = (versionId: string, token: string, payload: object) =>
+    call('POST', `/versions/${versionId}/reviews`, token, payload);
+
+  it('approves a version: the task moves to Approved, the artist hears, history records it', async () => {
+    const task = await createTask();
+    const deliverable = await submit(task.id, artist.token, 'v1.pdf');
+    const versionId = deliverable.versions[0]!.id;
+
+    const res = await review(versionId, manager.token, { decision: 'approve', summary: 'Great' });
+    expect(res.statusCode).toBe(201);
+    expect(res.json()).toMatchObject({
+      versions: [
+        {
+          state: 'approved',
+          review: { decision: 'approve', reviewerName: expect.any(String), summary: 'Great' },
+        },
+      ],
+    });
+    expect(await currentStatus(task.id)).toBe(statuses.approved!.id);
+
+    const { items } = (await call('GET', '/notifications', artist.token)).json() as {
+      items: { kind: string; detail: string | null }[];
+    };
+    expect(items).toContainEqual(expect.objectContaining({ kind: 'status', detail: 'Approved' }));
+    const history = (await call('GET', `/tasks/${task.id}/history`, manager.token)).json();
+    expect(history).toContainEqual(
+      expect.objectContaining({
+        event: 'reviewed',
+        name: 'Poster',
+        number: 1,
+        decision: 'approve',
+      }),
+    );
+  });
+
+  it('asks for changes with a summary: the task moves to Changes requested and a new version can follow', async () => {
+    const task = await createTask();
+    const deliverable = await submit(task.id, artist.token, 'v1.pdf');
+
+    const bare = await review(deliverable.versions[0]!.id, manager.token, { decision: 'changes' });
+    expect(bare.statusCode).toBe(400);
+
+    const res = await review(deliverable.versions[0]!.id, manager.token, {
+      decision: 'changes',
+      summary: 'Logo too small',
+    });
+    expect(res.statusCode).toBe(201);
+    expect(res.json()).toMatchObject({
+      versions: [{ state: 'changes', review: { decision: 'changes', summary: 'Logo too small' } }],
+    });
+    expect(await currentStatus(task.id)).toBe(statuses.changes!.id);
+
+    const next = await submit(task.id, artist.token, 'v2.pdf', deliverable.id);
+    expect(next.versions.map((v) => [v.number, v.state])).toEqual([
+      [1, 'changes'],
+      [2, 'pending'],
+    ]);
+    expect(await currentStatus(task.id)).toBe(statuses.review!.id);
+  });
+
+  it('refuses an artist, a stranger, and a manager reviewing their own submission', async () => {
+    const task = await createTask();
+    const deliverable = await submit(task.id, artist.token, 'v1.pdf');
+    const versionId = deliverable.versions[0]!.id;
+    const payload = { decision: 'approve' };
+
+    expect((await review(versionId, artist.token, payload)).statusCode).toBe(403);
+    expect((await review(versionId, outsider.token, payload)).statusCode).toBe(404);
+
+    // A manager who also works on a task sends a version; they cannot approve it themselves.
+    const mine = await createTask();
+    await call('PUT', `/tasks/${mine.id}/assignees`, manager.token, {
+      userIds: [artist.id, manager.id],
+    });
+    const own = await submit(mine.id, manager.token, 'mine.pdf');
+    const ownRes = await review(own.versions[0]!.id, manager.token, payload);
+    expect(ownRes.statusCode).toBe(403);
+    expect(await currentStatus(mine.id)).toBe(statuses.review!.id);
+  });
+
+  it('refuses a second decision, a decision on an older version, and a task that is not in review', async () => {
+    const task = await createTask();
+    const deliverable = await submit(task.id, artist.token, 'v1.pdf');
+    const firstId = deliverable.versions[0]!.id;
+    await review(firstId, manager.token, { decision: 'changes', summary: 'Again' });
+
+    // Not in review any more: the task waits for the artist.
+    expect((await review(firstId, manager.token, { decision: 'approve' })).statusCode).toBe(409);
+
+    // A newer version is in review; the older one can no longer be decided.
+    const second = await submit(task.id, artist.token, 'v2.pdf', deliverable.id);
+    const secondId = second.versions[1]!.id;
+    expect((await review(firstId, manager.token, { decision: 'approve' })).statusCode).toBe(409);
+    expect((await review(secondId, manager.token, { decision: 'approve' })).statusCode).toBe(201);
+    expect((await review(secondId, manager.token, { decision: 'approve' })).statusCode).toBe(409);
+  });
+
+  it('404s on an unknown version', async () => {
+    expect((await review('nope', manager.token, { decision: 'approve' })).statusCode).toBe(404);
   });
 });

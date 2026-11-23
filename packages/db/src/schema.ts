@@ -5,6 +5,7 @@ import {
   PROJECT_FILE_KINDS,
   PROJECT_MEMBER_ROLES,
   PROJECT_STATUSES,
+  REVIEW_DECISIONS,
   TASK_PRIORITIES,
   TASK_STATUS_KINDS,
   WORKSPACE_ROLES,
@@ -324,6 +325,24 @@ export const deliverableVersions = sqliteTable(
     submittedAt: integer('submitted_at', { mode: 'timestamp_ms' }).notNull(),
   },
   (t) => [uniqueIndex('deliverable_versions_number_idx').on(t.deliverableId, t.number)],
+);
+
+/** A manager's decision on one version. A version gets at most one (it leaves "pending" with it). */
+export const reviews = sqliteTable(
+  'reviews',
+  {
+    id: text('id').primaryKey(),
+    versionId: text('version_id')
+      .notNull()
+      .references(() => deliverableVersions.id, { onDelete: 'cascade' }),
+    reviewerId: text('reviewer_id')
+      .notNull()
+      .references(() => users.id),
+    decision: text('decision', { enum: REVIEW_DECISIONS }).notNull(),
+    summary: text('summary'),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [uniqueIndex('reviews_version_idx').on(t.versionId)],
 );
 
 /** Comments on a task (plain text). `mentions` is a JSON array of @-mentioned user ids. */
