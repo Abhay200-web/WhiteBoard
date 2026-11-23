@@ -261,5 +261,5 @@ Re-plan after each part's demo; the estimates will move.
 ## 8. How to resume tomorrow (3 steps)
 
 1. Open this file and `PROGRESS.md` ("Resume here").
-2. `git checkout develop && git pull`, then `git checkout -b feat/phase-a-tasks`.
-3. Tell Claude: "start 4.0 and 4.1". It will explain what it builds, wait for your approval, then build, test, update `PROGRESS.md` and commit; push and PR only when you say so.
+2. Check the branch: Parts 1-4 are on `develop`, Step T is on `feat/step-t-desktop`, and Step 5.1 is on `feat/step-5-1-deliverables` (commit bed69dd). Branch 5.2 from the latest 5.1 branch unless those PRs are merged first.
+3. Tell Claude: "start 5.2". It will explain what it builds, wait for your approval, then build, test, update `PROGRESS.md` and commit; push and PR only when you say so.
