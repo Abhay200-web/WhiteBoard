@@ -300,3 +300,61 @@ describe('reviews', () => {
     expect((await review('nope', manager.token, { decision: 'approve' })).statusCode).toBe(404);
   });
 });
+
+describe('version compare', () => {
+  const compare = (token: string, a: string, b: string) =>
+    call('GET', `/versions/compare?a=${a}&b=${b}`, token);
+
+  /** Sends one file as a new version of the deliverable; returns the version's id. */
+  async function sendVersion(
+    taskId: string,
+    token: string,
+    file: string,
+    deliverableId?: string,
+  ): Promise<{ deliverableId: string; versionId: string }> {
+    const id =
+      deliverableId ??
+      (
+        (
+          await call('POST', `/tasks/${taskId}/deliverables`, token, { name: 'Poster' })
+        ).json() as Deliverable
+      ).id;
+    const fileId = await uploadTestFile(host, token, file, PDF);
+    const res = await call('POST', `/deliverables/${id}/versions`, token, { fileId });
+    expect(res.statusCode).toBe(201);
+    const versions = (res.json() as Deliverable).versions;
+    return { deliverableId: id, versionId: versions[versions.length - 1]!.id };
+  }
+
+  it('returns two versions of one deliverable side by side, for people who see the task', async () => {
+    const task = await createTask();
+    const first = await sendVersion(task.id, artist.token, 'v1.pdf');
+    await call('PATCH', `/tasks/${task.id}`, manager.token, { statusId: statuses.changes!.id });
+    const second = await sendVersion(task.id, artist.token, 'v2.pdf', first.deliverableId);
+
+    const res = await compare(manager.token, first.versionId, second.versionId);
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({
+      deliverable: 'Poster',
+      a: { number: 1, name: 'v1.pdf' },
+      b: { number: 2, name: 'v2.pdf' },
+    });
+  });
+
+  it('refuses versions of different deliverables, and hides them from outsiders', async () => {
+    const poster = await sendVersion((await createTask()).id, artist.token, 'poster.pdf');
+    const logo = await sendVersion((await createTask()).id, artist.token, 'logo.pdf');
+
+    expect((await compare(manager.token, poster.versionId, logo.versionId)).statusCode).toBe(400);
+    // Outsiders get 404 for any of them, whether or not the versions exist.
+    expect((await compare(outsider.token, poster.versionId, poster.versionId)).statusCode).toBe(
+      404,
+    );
+    expect((await compare(outsider.token, poster.versionId, logo.versionId)).statusCode).toBe(404);
+    expect((await compare(manager.token, poster.versionId, 'nope')).statusCode).toBe(404);
+  });
+
+  it('needs both ids', async () => {
+    expect((await call('GET', '/versions/compare?a=x', manager.token)).statusCode).toBe(400);
+  });
+});

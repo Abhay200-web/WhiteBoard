@@ -8,12 +8,31 @@ pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 /**
  * Shows a PDF page by page with pdf.js. Loaded lazily, so the app does not pay for it up front.
  * `url` is a file link; pdf.js reads it in byte ranges, so a big PDF shows its first page early.
+ * The compare view passes `page` and `onPageChange` to drive the page itself, and `scale` to zoom.
  */
-export default function PdfViewer({ url, name }: { url: string; name: string }) {
+export default function PdfViewer({
+  url,
+  name,
+  scale = 1.4,
+  page: pageProp,
+  onPageChange,
+  onPageCount,
+}: {
+  url: string;
+  name: string;
+  scale?: number;
+  page?: number;
+  onPageChange?: (page: number) => void;
+  /** Told how many pages the document has, once it has loaded. Pass a stable function. */
+  onPageCount?: (pages: number) => void;
+}) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const [doc, setDoc] = useState<pdfjs.PDFDocumentProxy | null>(null);
-  const [page, setPage] = useState(1);
+  const [ownPage, setOwnPage] = useState(1);
   const [error, setError] = useState(false);
+  const controlled = pageProp !== undefined;
+  const page = pageProp ?? ownPage;
+  const goTo = (next: number) => (onPageChange ?? setOwnPage)(next);
 
   useEffect(() => {
     let cancelled = false;
@@ -22,7 +41,8 @@ export default function PdfViewer({ url, name }: { url: string; name: string }) 
       .then((pdf) => {
         if (!cancelled) {
           setDoc(pdf);
-          setPage(1);
+          setOwnPage(1);
+          onPageCount?.(pdf.numPages);
         }
       })
       .catch(() => !cancelled && setError(true));
@@ -30,16 +50,17 @@ export default function PdfViewer({ url, name }: { url: string; name: string }) 
       cancelled = true;
       void loadingTask.destroy();
     };
-  }, [url]);
+  }, [url, onPageCount]);
 
   useEffect(() => {
     if (!doc || !canvas.current) return;
     let task: pdfjs.RenderTask | null = null;
     let cancelled = false;
-    void doc.getPage(page).then((p) => {
+    // A page past the end (the other PDF of a comparison is shorter) shows the last page.
+    void doc.getPage(Math.min(page, doc.numPages)).then((p) => {
       const el = canvas.current;
       if (cancelled || !el) return;
-      const viewport = p.getViewport({ scale: 1.4 });
+      const viewport = p.getViewport({ scale });
       el.width = viewport.width;
       el.height = viewport.height;
       task = p.render({ canvas: el, viewport });
@@ -49,14 +70,14 @@ export default function PdfViewer({ url, name }: { url: string; name: string }) 
       cancelled = true;
       task?.cancel();
     };
-  }, [doc, page]);
+  }, [doc, page, scale]);
 
   if (error) return <p className="text-sm text-danger">This PDF could not be shown.</p>;
   return (
     <div>
-      {doc && doc.numPages > 1 && (
+      {!controlled && doc && doc.numPages > 1 && (
         <div className="mb-2 flex items-center gap-2 text-sm">
-          <Button variant="secondary" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+          <Button variant="secondary" disabled={page <= 1} onClick={() => goTo(page - 1)}>
             Previous page
           </Button>
           <span>
@@ -65,7 +86,7 @@ export default function PdfViewer({ url, name }: { url: string; name: string }) 
           <Button
             variant="secondary"
             disabled={page >= doc.numPages}
-            onClick={() => setPage((p) => p + 1)}
+            onClick={() => goTo(page + 1)}
           >
             Next page
           </Button>
@@ -74,7 +95,8 @@ export default function PdfViewer({ url, name }: { url: string; name: string }) 
       <canvas
         ref={canvas}
         aria-label={`${name}, page ${page}`}
-        className="max-w-full border border-line"
+        // A compared page is zoomed past the panel and scrolls, so it must not shrink to fit.
+        className={controlled ? 'max-w-none border border-line' : 'max-w-full border border-line'}
       />
     </div>
   );
