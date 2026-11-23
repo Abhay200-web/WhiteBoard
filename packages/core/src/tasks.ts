@@ -138,9 +138,13 @@ export const attachTaskFileRequestSchema = z.object({ fileId: z.string().min(1) 
 
 // --- deliverables --------------------------------------------------------------------------
 
-/** Review state of one version. Only "pending" is set in Part 5.1; 5.2 sets the other two. */
+/** Review state of one version: waiting for a manager, changes asked for, or approved. */
 export const DELIVERABLE_STATES = ['pending', 'changes', 'approved'] as const;
 export type DeliverableState = (typeof DELIVERABLE_STATES)[number];
+
+/** A manager's decision on a version. */
+export const REVIEW_DECISIONS = ['approve', 'changes'] as const;
+export type ReviewDecision = (typeof REVIEW_DECISIONS)[number];
 
 export const deliverableVersionSchema = z.object({
   id: z.string(),
@@ -153,6 +157,15 @@ export const deliverableVersionSchema = z.object({
   state: z.enum(DELIVERABLE_STATES),
   submittedBy: z.string(),
   submittedAt: z.number().int(),
+  /** The manager's decision and summary, once there is one. */
+  review: z
+    .object({
+      decision: z.enum(REVIEW_DECISIONS),
+      reviewerName: z.string(),
+      summary: z.string().nullable(),
+      at: z.number().int(),
+    })
+    .nullable(),
 });
 export type DeliverableVersion = z.infer<typeof deliverableVersionSchema>;
 
@@ -180,6 +193,26 @@ export const submitVersionRequestSchema = z.object({
     .nullable()
     .optional(),
 });
+
+/**
+ * `POST /versions/:id/reviews`. Asking for changes must say what to fix; approval may have a note.
+ * The Host enforces the same rule.
+ */
+export const reviewRequestSchema = z
+  .object({
+    decision: z.enum(REVIEW_DECISIONS),
+    summary: z
+      .string()
+      .trim()
+      .max(2000)
+      .transform((s) => s || null)
+      .nullable()
+      .optional(),
+  })
+  .refine((v) => v.decision === 'approve' || v.summary, {
+    message: 'Say what needs to change',
+    path: ['summary'],
+  });
 
 // --- comments ------------------------------------------------------------------------------
 
@@ -230,6 +263,13 @@ export const taskEventSchema = z.discriminatedUnion('event', [
   z.object({ event: z.literal('file'), name: z.string(), added: z.boolean() }),
   /** An artist sent version `number` of the deliverable `name` for review. */
   z.object({ event: z.literal('submitted'), name: z.string(), number: z.number().int() }),
+  /** A manager approved version `number` of `name`, or asked for changes on it. */
+  z.object({
+    event: z.literal('reviewed'),
+    name: z.string(),
+    number: z.number().int(),
+    decision: z.enum(REVIEW_DECISIONS),
+  }),
   z.object({ event: z.literal('comment') }),
   /**
    * The assignee `name` left the workspace. `to`: who took the task over (null: unassigned).

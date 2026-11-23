@@ -24,6 +24,7 @@ export default defineConfig({
         '/tasks',
         '/subtasks',
         '/deliverables',
+        '/versions',
         '/me/',
         '/comments',
         '/notifications',

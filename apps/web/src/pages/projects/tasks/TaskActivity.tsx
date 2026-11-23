@@ -245,6 +245,10 @@ function describeChange(e: TaskHistoryEntry): string {
       return `${e.added ? 'attached' : 'removed'} ${e.name}`;
     case 'submitted':
       return `sent ${e.name} v${e.number} for review`;
+    case 'reviewed':
+      return e.decision === 'approve'
+        ? `approved ${e.name} v${e.number}`
+        : `asked for changes on ${e.name} v${e.number}`;
     case 'comment':
       return 'commented';
     case 'left': {

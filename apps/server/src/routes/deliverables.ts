@@ -3,14 +3,19 @@ import { randomUUID } from 'node:crypto';
 import {
   createDeliverableRequestSchema,
   deliverableListSchema,
+  reviewRequestSchema,
   submitVersionRequestSchema,
   type Deliverable,
+  type DeliverableState,
+  type ReviewDecision,
   type TaskStatusKind,
 } from '@whiteboard/core';
 import {
   deliverables,
   deliverableVersions,
   files,
+  reviews,
+  taskAssignees,
   taskFiles,
   taskStatuses,
   tasks,
@@ -18,6 +23,7 @@ import {
   type Db,
 } from '@whiteboard/db';
 import { and, asc, eq, inArray, sql, type SQL } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/sqlite-core';
 import type { FastifyPluginAsync, FastifyReply } from 'fastify';
 
 import type { EventHub } from '../events/hub';
@@ -29,6 +35,12 @@ import { canAccessFile } from './files';
 
 /** Task statuses an artist can send work from. Not from In review, Approved or Done. */
 const SUBMITTABLE: readonly TaskStatusKind[] = ['todo', 'doing', 'changes'];
+
+/** What a manager's decision does: the version's new state and the status its task moves to. */
+const DECISIONS: Record<ReviewDecision, { state: DeliverableState; status: TaskStatusKind }> = {
+  approve: { state: 'approved', status: 'approved' },
+  changes: { state: 'changes', status: 'changes' },
+};
 
 export const deliverableRoutes: FastifyPluginAsync<{ db: Db; hub: EventHub }> = async (
   app,
@@ -50,6 +62,7 @@ export const deliverableRoutes: FastifyPluginAsync<{ db: Db; hub: EventHub }> = 
       .orderBy(asc(deliverables.createdAt))
       .all();
     if (list.length === 0) return [];
+    const reviewer = alias(users, 'reviewer');
     const versions = db
       .select({
         deliverableId: deliverableVersions.deliverableId,
@@ -63,10 +76,16 @@ export const deliverableRoutes: FastifyPluginAsync<{ db: Db; hub: EventHub }> = 
         state: deliverableVersions.state,
         submittedBy: users.name,
         submittedAt: deliverableVersions.submittedAt,
+        reviewDecision: reviews.decision,
+        reviewerName: reviewer.name,
+        reviewSummary: reviews.summary,
+        reviewedAt: reviews.createdAt,
       })
       .from(deliverableVersions)
       .innerJoin(files, eq(files.id, deliverableVersions.fileId))
       .innerJoin(users, eq(users.id, deliverableVersions.submittedBy))
+      .leftJoin(reviews, eq(reviews.versionId, deliverableVersions.id))
+      .leftJoin(reviewer, eq(reviewer.id, reviews.reviewerId))
       .where(
         inArray(
           deliverableVersions.deliverableId,
@@ -81,7 +100,19 @@ export const deliverableRoutes: FastifyPluginAsync<{ db: Db; hub: EventHub }> = 
         name: d.name,
         versions: versions
           .filter((v) => v.deliverableId === d.id)
-          .map((v) => ({ ...v, submittedAt: v.submittedAt.getTime() })),
+          .map((v) => ({
+            ...v,
+            submittedAt: v.submittedAt.getTime(),
+            review:
+              v.reviewDecision && v.reviewerName && v.reviewedAt
+                ? {
+                    decision: v.reviewDecision,
+                    reviewerName: v.reviewerName,
+                    summary: v.reviewSummary,
+                    at: v.reviewedAt.getTime(),
+                  }
+                : null,
+          })),
       })),
     );
   }
@@ -190,6 +221,100 @@ export const deliverableRoutes: FastifyPluginAsync<{ db: Db; hub: EventHub }> = 
         projectId: task.projectId,
         taskId: task.id,
         detail: review.name,
+      });
+    });
+    changed(task.projectId, task.id);
+    return reply.code(201).send(readDeliverables(eq(deliverables.id, deliverable.id))[0]);
+  });
+
+  /**
+   * A manager's decision on a version: approve it (the task moves to Approved) or ask for changes
+   * (the task moves to Changes requested). The artist hears about it. Only a manager or admin may
+   * decide; nobody decides their own work. Only the latest version of a task that is in review can
+   * be decided, and only once.
+   */
+  app.post('/versions/:id/reviews', { preHandler: signedIn }, async (request, reply) => {
+    const version = db
+      .select()
+      .from(deliverableVersions)
+      .where(eq(deliverableVersions.id, paramId(request)))
+      .get();
+    const deliverable =
+      version &&
+      db.select().from(deliverables).where(eq(deliverables.id, version.deliverableId)).get();
+    if (!version || !deliverable) return sendError(reply, 404, 'not_found', 'Version not found');
+    const task = loadTask(request, reply, 'manage', deliverable.taskId);
+    if (!task) return;
+    const auth = request.auth!;
+    if (version.submittedBy === auth.user.id) {
+      return sendError(reply, 403, 'forbidden', 'You cannot review your own work');
+    }
+
+    const current = db.select().from(taskStatuses).where(eq(taskStatuses.id, task.statusId)).get()!;
+    if (current.kind !== 'review') {
+      return sendError(reply, 409, 'not_in_review', 'This task is not waiting for review');
+    }
+    if (version.state !== 'pending') {
+      return sendError(reply, 409, 'already_reviewed', 'This version has already been reviewed');
+    }
+    const { latest } = db
+      .select({ latest: sql<number>`coalesce(max(${deliverableVersions.number}), 0)` })
+      .from(deliverableVersions)
+      .where(eq(deliverableVersions.deliverableId, deliverable.id))
+      .get()!;
+    if (version.number !== latest) {
+      return sendError(reply, 409, 'not_latest', 'A newer version was sent; review that one');
+    }
+    const parsed = reviewRequestSchema.safeParse(request.body);
+    if (!parsed.success) return badRequest(reply, parsed.error.issues[0]?.message);
+
+    const { decision } = parsed.data;
+    const { state, status } = DECISIONS[decision];
+    const target = db
+      .select()
+      .from(taskStatuses)
+      .where(and(eq(taskStatuses.projectId, task.projectId), eq(taskStatuses.kind, status)))
+      .get()!;
+    const sortKey = nextTaskKey(db, target.id);
+
+    db.transaction((tx) => {
+      tx.insert(reviews)
+        .values({
+          id: randomUUID(),
+          versionId: version.id,
+          reviewerId: auth.user.id,
+          decision,
+          summary: parsed.data.summary ?? null,
+          createdAt: new Date(),
+        })
+        .run();
+      tx.update(deliverableVersions)
+        .set({ state })
+        .where(eq(deliverableVersions.id, version.id))
+        .run();
+      tx.update(tasks)
+        .set({ statusId: target.id, sortKey, updatedAt: new Date() })
+        .where(eq(tasks.id, task.id))
+        .run();
+      recordHistory(tx, task.id, auth.user.id, {
+        event: 'reviewed',
+        name: deliverable.name,
+        number: version.number,
+        decision,
+      });
+      const assignees = tx
+        .select({ userId: taskAssignees.userId })
+        .from(taskAssignees)
+        .where(eq(taskAssignees.taskId, task.id))
+        .all()
+        .map((a) => a.userId);
+      notify(tx, hub, {
+        to: assignees,
+        actorId: auth.user.id,
+        kind: 'status',
+        projectId: task.projectId,
+        taskId: task.id,
+        detail: target.name,
       });
     });
     changed(task.projectId, task.id);

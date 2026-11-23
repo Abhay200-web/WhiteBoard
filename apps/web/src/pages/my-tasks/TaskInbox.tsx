@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { myTaskListSchema, type MyTask } from '@whiteboard/core';
 import { Card, Spinner } from '@whiteboard/ui';
 import { useState } from 'react';
+import { Link } from 'react-router';
 
 import { useAuth } from '../../auth/AuthProvider';
 import { FormError } from '../../components/AuthShell';
@@ -49,7 +50,15 @@ function OpenTask({ task, onClose }: { task: MyTask; onClose: () => void }) {
   );
 }
 
-function TaskLines({ tasks, onOpen }: { tasks: MyTask[]; onOpen: (task: MyTask) => void }) {
+function TaskLines({
+  tasks,
+  onOpen,
+  reviewLinks,
+}: {
+  tasks: MyTask[];
+  onOpen: (task: MyTask) => void;
+  reviewLinks: boolean;
+}) {
   return (
     <ul className="divide-y divide-line">
       {tasks.map((t) => (
@@ -65,6 +74,11 @@ function TaskLines({ tasks, onOpen }: { tasks: MyTask[]; onOpen: (task: MyTask) 
             {t.projectName} · {t.statusName}
           </span>
           <TaskMeta task={t} />
+          {reviewLinks && (
+            <Link to={`/review/${t.id}`} className="text-accent underline">
+              Review
+            </Link>
+          )}
         </li>
       ))}
     </ul>
@@ -80,11 +94,14 @@ export function TaskInbox({
   path,
   empty,
   grouped,
+  reviewLinks = false,
 }: {
   title: string;
   path: string;
   empty: string;
   grouped: boolean;
+  /** Each row links to its review page (the review queue). */
+  reviewLinks?: boolean;
 }) {
   const queryClient = useQueryClient();
   const tasks = useQuery({
@@ -103,7 +120,7 @@ export function TaskInbox({
       {tasks.data?.length === 0 && <p className="text-sm text-muted">{empty}</p>}
       {sorted.length > 0 && !grouped && (
         <Card>
-          <TaskLines tasks={sorted} onOpen={setOpen} />
+          <TaskLines tasks={sorted} onOpen={setOpen} reviewLinks={reviewLinks} />
         </Card>
       )}
       {grouped &&
@@ -116,7 +133,7 @@ export function TaskInbox({
                 <h2 className="font-semibold">
                   {group} ({inGroup.length})
                 </h2>
-                <TaskLines tasks={inGroup} onOpen={setOpen} />
+                <TaskLines tasks={inGroup} onOpen={setOpen} reviewLinks={reviewLinks} />
               </section>
             </Card>
           );
