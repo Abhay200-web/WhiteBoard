@@ -214,6 +214,15 @@ export const reviewRequestSchema = z
     path: ['summary'],
   });
 
+/** `GET /versions/compare?a=&b=`: two versions, which must be of the same deliverable. */
+export const compareQuerySchema = z.object({ a: z.string().min(1), b: z.string().min(1) });
+export const versionCompareSchema = z.object({
+  deliverable: z.string(),
+  a: deliverableVersionSchema,
+  b: deliverableVersionSchema,
+});
+export type VersionCompare = z.infer<typeof versionCompareSchema>;
+
 // --- comments ------------------------------------------------------------------------------
 
 /** A task comment: plain text. `mentions` are the user ids @-mentioned in it (project members). */

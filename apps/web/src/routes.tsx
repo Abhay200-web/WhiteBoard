@@ -11,6 +11,7 @@ import { LoginPage } from './pages/LoginPage';
 import { MembersPage } from './pages/members/MembersPage';
 import { TaskInbox } from './pages/my-tasks/TaskInbox';
 import { HomePage, NotFoundPage } from './pages/misc';
+import { ComparePage } from './pages/compare/ComparePage';
 import { ReviewPage } from './pages/review/ReviewPage';
 import { NewProjectPage } from './pages/projects/NewProjectPage';
 import { ProjectPage } from './pages/projects/ProjectPage';
@@ -59,6 +60,7 @@ const pages: RouteObject[] = [
             ),
           },
           { path: '/review/:taskId', element: <ReviewPage /> },
+          { path: '/compare/:taskId/:deliverableId', element: <ComparePage /> },
           { element: <RequireAdmin />, children: [{ path: '/members', element: <MembersPage /> }] },
           {
             path: '/settings',

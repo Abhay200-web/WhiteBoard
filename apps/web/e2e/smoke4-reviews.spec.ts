@@ -68,7 +68,14 @@ test('send for review, ask for changes, send again, approve', async ({ page, bro
     buffer: PNG,
   });
   await expect(again.getByRole('list', { name: 'Versions of Poster' })).toContainText('v2');
-  await again.getByRole('button', { name: 'Close' }).click();
+
+  // She compares the two versions: both files side by side, and one zoom for both.
+  await again.getByRole('link', { name: 'Compare versions' }).click();
+  await expect(bea.page.getByRole('heading', { name: 'Compare Poster' })).toBeVisible();
+  await expect(bea.page.getByRole('img', { name: 'poster.png' })).toBeVisible();
+  await expect(bea.page.getByRole('img', { name: 'poster-v2.png' })).toBeVisible();
+  await bea.page.getByRole('button', { name: 'Zoom in' }).click();
+  await expect(bea.page.getByText('125%')).toBeVisible();
 
   // The manager approves version 2: the task moves to Approved.
   await page.goto('/review-queue');
