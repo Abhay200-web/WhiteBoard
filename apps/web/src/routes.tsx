@@ -11,6 +11,7 @@ import { LoginPage } from './pages/LoginPage';
 import { MembersPage } from './pages/members/MembersPage';
 import { TaskInbox } from './pages/my-tasks/TaskInbox';
 import { HomePage, NotFoundPage } from './pages/misc';
+import { ReviewPage } from './pages/review/ReviewPage';
 import { NewProjectPage } from './pages/projects/NewProjectPage';
 import { ProjectPage } from './pages/projects/ProjectPage';
 import { ProjectsPage } from './pages/projects/ProjectsPage';
@@ -53,9 +54,11 @@ const pages: RouteObject[] = [
                 path="/me/review-queue"
                 empty="Nothing is waiting for your review."
                 grouped={false}
+                reviewLinks
               />
             ),
           },
+          { path: '/review/:taskId', element: <ReviewPage /> },
           { element: <RequireAdmin />, children: [{ path: '/members', element: <MembersPage /> }] },
           {
             path: '/settings',
