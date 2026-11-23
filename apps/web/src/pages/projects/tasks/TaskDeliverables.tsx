@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { deliverableListSchema, deliverableSchema, type DeliverableState } from '@whiteboard/core';
 import { Field, FileUploader, Input, Select, Spinner } from '@whiteboard/ui';
 import { useState } from 'react';
+import { Link } from 'react-router';
 
 import { FormError } from '../../../components/AuthShell';
 import { api, errorText } from '../../../lib/api';
@@ -74,7 +75,14 @@ export function TaskDeliverables({
       {list.data?.length === 0 && <p className="text-sm text-muted">No deliverables yet.</p>}
       {list.data?.map((d) => (
         <div key={d.id} className="rounded-md border border-line p-3">
-          <p className="text-sm font-medium">{d.name}</p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-medium">{d.name}</p>
+            {d.versions.length >= 2 && (
+              <Link to={`/compare/${taskId}/${d.id}`} className="text-sm text-accent underline">
+                Compare versions
+              </Link>
+            )}
+          </div>
           <ul aria-label={`Versions of ${d.name}`} className="mt-2 divide-y divide-line">
             {d.versions.map((v) => (
               <li key={v.id} className="py-2 text-sm">

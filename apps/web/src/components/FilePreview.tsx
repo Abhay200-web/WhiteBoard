@@ -24,6 +24,22 @@ function useObjectUrl(blob: Blob | undefined): string | null {
   return url;
 }
 
+/**
+ * A short-lived link to a file on the Host, for media tags. A new link changes the src and restarts
+ * a playing video, so it is only renewed when the preview opens again after a while, well before
+ * the link runs out.
+ */
+export function useFileLink(fileId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ['file-link', fileId],
+    queryFn: () => api(`/files/${fileId}/link`, { method: 'POST', schema: fileLinkSchema }),
+    enabled,
+    staleTime: 30 * 60_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  });
+}
+
 export function saveBlob(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -48,16 +64,7 @@ export function FilePreview({
   mimeType: string;
 }) {
   const kind = previewKind(mimeType);
-  const link = useQuery({
-    queryKey: ['file-link', fileId],
-    queryFn: () => api(`/files/${fileId}/link`, { method: 'POST', schema: fileLinkSchema }),
-    enabled: kind !== 'other',
-    // A new link changes the src and restarts a playing video, so only renew it when the preview
-    // opens again after a while, well before the link runs out.
-    staleTime: 30 * 60_000,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-  });
+  const link = useFileLink(fileId, kind !== 'other');
   const download = useMutation({
     mutationFn: async () => saveBlob(await fetchFileBlob(`/files/${fileId}/content`), name),
   });

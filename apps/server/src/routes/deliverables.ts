@@ -1,10 +1,12 @@
 import { randomUUID } from 'node:crypto';
 
 import {
+  compareQuerySchema,
   createDeliverableRequestSchema,
   deliverableListSchema,
   reviewRequestSchema,
   submitVersionRequestSchema,
+  versionCompareSchema,
   type Deliverable,
   type DeliverableState,
   type ReviewDecision,
@@ -319,5 +321,38 @@ export const deliverableRoutes: FastifyPluginAsync<{ db: Db; hub: EventHub }> = 
     });
     changed(task.projectId, task.id);
     return reply.code(201).send(readDeliverables(eq(deliverables.id, deliverable.id))[0]);
+  });
+
+  /**
+   * Two versions side by side. Both must be of the same deliverable. The caller must see both
+   * tasks first, so a stranger learns nothing about versions they cannot open.
+   */
+  app.get('/versions/compare', { preHandler: signedIn }, async (request, reply) => {
+    const parsed = compareQuerySchema.safeParse(request.query);
+    if (!parsed.success) return badRequest(reply, parsed.error.issues[0]?.message);
+    const { a, b } = parsed.data;
+    const owner = (versionId: string) =>
+      db
+        .select({ deliverableId: deliverables.id, taskId: deliverables.taskId })
+        .from(deliverableVersions)
+        .innerJoin(deliverables, eq(deliverables.id, deliverableVersions.deliverableId))
+        .where(eq(deliverableVersions.id, versionId))
+        .get();
+    const ownerA = owner(a);
+    const ownerB = owner(b);
+    if (!ownerA || !ownerB) return sendError(reply, 404, 'not_found', 'Version not found');
+    if (!loadTask(request, reply, 'view', ownerA.taskId)) return;
+    if (!loadTask(request, reply, 'view', ownerB.taskId)) return;
+    if (ownerA.deliverableId !== ownerB.deliverableId) {
+      return sendError(
+        reply,
+        400,
+        'different_deliverables',
+        'Only versions of the same deliverable can be compared',
+      );
+    }
+    const [deliverable] = readDeliverables(eq(deliverables.id, ownerA.deliverableId));
+    const pick = (id: string) => deliverable!.versions.find((v) => v.id === id)!;
+    return versionCompareSchema.parse({ deliverable: deliverable!.name, a: pick(a), b: pick(b) });
   });
 };
