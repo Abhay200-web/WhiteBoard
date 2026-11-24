@@ -10,6 +10,7 @@ import { loadConfig } from './config';
 import { announceHost } from './discovery';
 import { EventHub } from './events/hub';
 import { backupJob } from './jobs/backup';
+import { deadlinesJob } from './jobs/deadlines';
 import { guestExpiryJob } from './jobs/guest-expiry';
 import { startScheduler } from './scheduler';
 import { SERVER_VERSION } from './version';
@@ -37,7 +38,7 @@ await app.listen({ host: config.host, port: config.port });
 
 const stopScheduler = startScheduler(
   db,
-  [guestExpiryJob(hub), backupJob(config.dataDir, SERVER_VERSION)],
+  [guestExpiryJob(hub), deadlinesJob(hub), backupJob(config.dataDir, SERVER_VERSION)],
   {
     onError: (err) => app.log.error(err, 'scheduler failed'),
   },

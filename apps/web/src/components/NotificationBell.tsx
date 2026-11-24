@@ -23,6 +23,10 @@ function describe(n: Notification): string {
       return `${n.actorName} added you to ${n.projectName}`;
     case 'access_ended':
       return `${n.actorName}'s access ended: ${task} is now unassigned`;
+    case 'due_soon':
+      return `${task} is due within 24 hours`;
+    case 'overdue':
+      return `${task} is overdue`;
   }
 }
 

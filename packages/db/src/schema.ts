@@ -1,5 +1,6 @@
 // SQLite schema (spec §6). Timestamps are integer ms, ids are text (ULID).
 import {
+  DEADLINE_ALERT_KINDS,
   DELIVERABLE_STATES,
   NOTIFICATION_KINDS,
   PIN_STATES,
@@ -436,9 +437,8 @@ export const notifications = sqliteTable(
     userId: text('user_id')
       .notNull()
       .references(() => users.id),
-    actorId: text('actor_id')
-      .notNull()
-      .references(() => users.id),
+    /** Who did it; null for the Host's own alerts. */
+    actorId: text('actor_id').references(() => users.id),
     kind: text('kind', { enum: NOTIFICATION_KINDS }).notNull(),
     projectId: text('project_id')
       .notNull()
@@ -449,6 +449,23 @@ export const notifications = sqliteTable(
     readAt: integer('read_at', { mode: 'timestamp_ms' }),
   },
   (t) => [index('notifications_user_idx').on(t.userId, t.createdAt)],
+);
+
+/**
+ * Deadline alerts already sent, so each is sent once. Keyed by the due date too: moving a task's
+ * due date sends its alerts again.
+ */
+export const deadlineAlerts = sqliteTable(
+  'deadline_alerts',
+  {
+    taskId: text('task_id')
+      .notNull()
+      .references(() => tasks.id, { onDelete: 'cascade' }),
+    kind: text('kind', { enum: DEADLINE_ALERT_KINDS }).notNull(),
+    dueAt: integer('due_at', { mode: 'timestamp_ms' }).notNull(),
+    sentAt: integer('sent_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.taskId, t.kind, t.dueAt] })],
 );
 
 /** Last run of each scheduled job, so missed runs are caught up after Host downtime. */
