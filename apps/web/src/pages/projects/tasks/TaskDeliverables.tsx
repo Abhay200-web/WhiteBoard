@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Link } from 'react-router';
 
 import { FormError } from '../../../components/AuthShell';
+import { PinnedPreview } from '../../../components/PinnedPreview';
 import { api, errorText } from '../../../lib/api';
 import { uploadFile } from '../../../lib/files';
 import { formatDateTime, formatFileSize } from '../format';
@@ -39,6 +40,7 @@ export function TaskDeliverables({
   const [target, setTarget] = useState(''); // '' means a new deliverable
   const [newName, setNewName] = useState('');
   const [note, setNote] = useState('');
+  const [previewing, setPreviewing] = useState<string | null>(null);
 
   const submit = useMutation({
     mutationFn: async (fileId: string) => {
@@ -99,6 +101,23 @@ export function TaskDeliverables({
                   <p className="mt-1">
                     {v.review.reviewerName}: {v.review.summary}
                   </p>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setPreviewing(previewing === v.id ? null : v.id)}
+                  className="mt-1 text-accent underline"
+                >
+                  {previewing === v.id ? 'Hide preview and pins' : 'Preview and pins'}
+                </button>
+                {previewing === v.id && (
+                  <div className="mt-2">
+                    <PinnedPreview
+                      versionId={v.id}
+                      fileId={v.fileId}
+                      name={v.name}
+                      mimeType={v.mimeType}
+                    />
+                  </div>
                 )}
               </li>
             ))}

@@ -1,7 +1,7 @@
 import { Button } from '@whiteboard/ui';
 import * as pdfjs from 'pdfjs-dist';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -17,6 +17,7 @@ export default function PdfViewer({
   page: pageProp,
   onPageChange,
   onPageCount,
+  overlay,
 }: {
   url: string;
   name: string;
@@ -25,6 +26,8 @@ export default function PdfViewer({
   onPageChange?: (page: number) => void;
   /** Told how many pages the document has, once it has loaded. Pass a stable function. */
   onPageCount?: (pages: number) => void;
+  /** Drawn over the page (same size as it), for pins. Told which page is showing. */
+  overlay?: (page: number) => ReactNode;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const [doc, setDoc] = useState<pdfjs.PDFDocumentProxy | null>(null);
@@ -92,12 +95,15 @@ export default function PdfViewer({
           </Button>
         </div>
       )}
-      <canvas
-        ref={canvas}
-        aria-label={`${name}, page ${page}`}
-        // A compared page is zoomed past the panel and scrolls, so it must not shrink to fit.
-        className={controlled ? 'max-w-none border border-line' : 'max-w-full border border-line'}
-      />
+      <div className="relative inline-block max-w-full">
+        <canvas
+          ref={canvas}
+          aria-label={`${name}, page ${page}`}
+          // A compared page is zoomed past the panel and scrolls, so it must not shrink to fit.
+          className={controlled ? 'max-w-none border border-line' : 'max-w-full border border-line'}
+        />
+        {overlay?.(page)}
+      </div>
     </div>
   );
 }

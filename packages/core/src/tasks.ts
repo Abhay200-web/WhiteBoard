@@ -223,6 +223,54 @@ export const versionCompareSchema = z.object({
 });
 export type VersionCompare = z.infer<typeof versionCompareSchema>;
 
+// --- pins ----------------------------------------------------------------------------------
+
+/** A pin is open until someone resolves it. */
+export const PIN_STATES = ['open', 'resolved'] as const;
+export type PinState = (typeof PIN_STATES)[number];
+
+/** A numbered pin on one page of a version's preview. `x` and `y` are 0–1 of that page. */
+export const pinSchema = z.object({
+  id: z.string(),
+  versionId: z.string(),
+  number: z.number().int(),
+  page: z.number().int(),
+  x: z.number(),
+  y: z.number(),
+  state: z.enum(PIN_STATES),
+  createdBy: z.string(),
+  createdByName: z.string(),
+  createdAt: z.number().int(),
+});
+export type Pin = z.infer<typeof pinSchema>;
+export const pinListSchema = z.array(pinSchema);
+
+/** `POST /versions/:id/pins`: where the click landed. */
+export const pinRequestSchema = z.object({
+  page: z.number().int().min(1).max(10000),
+  x: z.number().min(0).max(1),
+  y: z.number().min(0).max(1),
+});
+
+/** `PATCH /pins/:id`: resolve or reopen. */
+export const pinStateRequestSchema = z.object({ state: z.enum(PIN_STATES) });
+
+export const pinCommentSchema = z.object({
+  id: z.string(),
+  pinId: z.string(),
+  authorId: z.string(),
+  authorName: z.string(),
+  body: z.string(),
+  createdAt: z.number().int(),
+});
+export type PinComment = z.infer<typeof pinCommentSchema>;
+export const pinCommentListSchema = z.array(pinCommentSchema);
+
+/** `POST /pins/:id/comments`: one message in a pin's thread. */
+export const pinCommentRequestSchema = z.object({
+  body: z.string().trim().min(1, 'Write something first').max(2000),
+});
+
 // --- comments ------------------------------------------------------------------------------
 
 /** A task comment: plain text. `mentions` are the user ids @-mentioned in it (project members). */
