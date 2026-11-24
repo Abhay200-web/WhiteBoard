@@ -14,7 +14,7 @@ import { Link, useParams } from 'react-router';
 
 import { useAuth } from '../../auth/AuthProvider';
 import { FormError } from '../../components/AuthShell';
-import { FilePreview } from '../../components/FilePreview';
+import { PinnedPreview } from '../../components/PinnedPreview';
 import { api, errorText } from '../../lib/api';
 import { formatDateTime } from '../projects/format';
 import { tasksKey } from '../projects/tasks/queries';
@@ -112,7 +112,12 @@ function ReviewCard({
           </p>
           {version.note && <p className="mt-1">{version.note}</p>}
         </div>
-        <FilePreview fileId={version.fileId} name={version.name} mimeType={version.mimeType} />
+        <PinnedPreview
+          versionId={version.id}
+          fileId={version.fileId}
+          name={version.name}
+          mimeType={version.mimeType}
+        />
         <label className="flex flex-col gap-1.5 text-sm">
           <span className="font-medium">Summary for the artist</span>
           <textarea

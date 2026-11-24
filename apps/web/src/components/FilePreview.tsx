@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { fileLinkSchema } from '@whiteboard/core';
 import { Button, Spinner } from '@whiteboard/ui';
-import { lazy, Suspense, useEffect, useMemo } from 'react';
+import { lazy, Suspense, useEffect, useMemo, type ReactNode } from 'react';
 
 import { api, ApiError, getHostUrl } from '../lib/api';
 import { fetchFileBlob } from '../lib/files';
@@ -58,10 +58,13 @@ export function FilePreview({
   fileId,
   name,
   mimeType,
+  overlay,
 }: {
   fileId: string;
   name: string;
   mimeType: string;
+  /** Drawn over an image or a PDF page (pins). Told the page: an image is page 1. */
+  overlay?: (page: number) => ReactNode;
 }) {
   const kind = previewKind(mimeType);
   const link = useFileLink(fileId, kind !== 'other');
@@ -108,7 +111,14 @@ export function FilePreview({
   const url = `${getHostUrl()}${link.data.url}`;
   if (kind === 'image') {
     return (
-      <img src={url} alt={name} className="max-h-[70vh] max-w-full rounded-md border border-line" />
+      <div className="relative inline-block max-w-full">
+        <img
+          src={url}
+          alt={name}
+          className="max-h-[70vh] max-w-full rounded-md border border-line"
+        />
+        {overlay?.(1)}
+      </div>
     );
   }
   if (kind === 'video') {
@@ -125,7 +135,7 @@ export function FilePreview({
   return (
     <div className="flex flex-col gap-2">
       <Suspense fallback={<Spinner label="Loading PDF viewer" />}>
-        <PdfViewer url={url} name={name} />
+        <PdfViewer url={url} name={name} overlay={overlay} />
       </Suspense>
       {downloadButton}
     </div>

@@ -2,6 +2,7 @@
 import {
   DELIVERABLE_STATES,
   NOTIFICATION_KINDS,
+  PIN_STATES,
   PROJECT_FILE_KINDS,
   PROJECT_MEMBER_ROLES,
   PROJECT_STATUSES,
@@ -14,6 +15,7 @@ import {
   index,
   integer,
   primaryKey,
+  real,
   sqliteTable,
   text,
   uniqueIndex,
@@ -343,6 +345,44 @@ export const reviews = sqliteTable(
     createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
   },
   (t) => [uniqueIndex('reviews_version_idx').on(t.versionId)],
+);
+
+/** A numbered pin on one page of a version's preview. `number` counts 1, 2, 3 per version. */
+export const pins = sqliteTable(
+  'pins',
+  {
+    id: text('id').primaryKey(),
+    versionId: text('version_id')
+      .notNull()
+      .references(() => deliverableVersions.id, { onDelete: 'cascade' }),
+    number: integer('number').notNull(),
+    page: integer('page').notNull(),
+    x: real('x').notNull(),
+    y: real('y').notNull(),
+    state: text('state', { enum: PIN_STATES }).notNull().default('open'),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => users.id),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [uniqueIndex('pins_version_number_idx').on(t.versionId, t.number)],
+);
+
+/** One message in a pin's thread. */
+export const pinComments = sqliteTable(
+  'pin_comments',
+  {
+    id: text('id').primaryKey(),
+    pinId: text('pin_id')
+      .notNull()
+      .references(() => pins.id, { onDelete: 'cascade' }),
+    authorId: text('author_id')
+      .notNull()
+      .references(() => users.id),
+    body: text('body').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [index('pin_comments_pin_idx').on(t.pinId, t.createdAt)],
 );
 
 /** Comments on a task (plain text). `mentions` is a JSON array of @-mentioned user ids. */
