@@ -73,6 +73,30 @@ describe('notification bell', () => {
     expect(screen.queryByRole('region', { name: 'Notifications' })).not.toBeInTheDocument();
   });
 
+  it("reads the Host's deadline alerts as sentences, with no actor", async () => {
+    mockHost({}, FRED);
+    server.use(
+      http.get('*/notifications', () =>
+        HttpResponse.json({
+          unread: 1,
+          items: [
+            note({ id: 'd1', kind: 'due_soon', actorName: null }),
+            note({ id: 'd2', kind: 'overdue', actorName: null, taskTitle: 'Poster', readAt: 1 }),
+          ],
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    renderApp('/', 'tok');
+    await user.click(await screen.findByRole('button', { name: 'Notifications, 1 unread' }));
+    const panel = screen.getByRole('region', { name: 'Notifications' });
+    const lines = within(panel)
+      .getAllByRole('button')
+      .filter((b) => b.textContent !== 'Mark all read')
+      .map((b) => b.textContent?.split('Logo for Client X ·')[0]);
+    expect(lines).toEqual(['Unread: Logo concepts is due within 24 hours', 'Poster is overdue']);
+  });
+
   it('marks everything read', async () => {
     mockHost({}, FRED);
     let unread = 1;

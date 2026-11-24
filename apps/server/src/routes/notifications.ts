@@ -44,7 +44,7 @@ export const notificationRoutes: FastifyPluginAsync<{ db: Db }> = async (app, { 
         readAt: notifications.readAt,
       })
       .from(notifications)
-      .innerJoin(users, eq(users.id, notifications.actorId))
+      .leftJoin(users, eq(users.id, notifications.actorId))
       .innerJoin(projects, eq(projects.id, notifications.projectId))
       .leftJoin(tasks, eq(tasks.id, notifications.taskId))
       .where(mine)

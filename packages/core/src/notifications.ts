@@ -1,5 +1,12 @@
 import { z } from 'zod';
 
+/**
+ * Alerts the Host sends about due dates, with no actor: "due soon" (within 24 hours) and "overdue"
+ * (past the due date, not done).
+ */
+export const DEADLINE_ALERT_KINDS = ['due_soon', 'overdue'] as const;
+export type DeadlineAlertKind = (typeof DEADLINE_ALERT_KINDS)[number];
+
 export const NOTIFICATION_KINDS = [
   'assigned',
   'mentioned',
@@ -8,6 +15,7 @@ export const NOTIFICATION_KINDS = [
   'added_to_project',
   /** To project managers: the actor's freelancer access ran out; their task is unassigned. */
   'access_ended',
+  ...DEADLINE_ALERT_KINDS,
 ] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
@@ -15,7 +23,8 @@ export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 export const notificationSchema = z.object({
   id: z.string(),
   kind: z.enum(NOTIFICATION_KINDS),
-  actorName: z.string(),
+  /** Null for the Host's own alerts (due soon, overdue). */
+  actorName: z.string().nullable(),
   projectId: z.string(),
   projectName: z.string(),
   taskId: z.string().nullable(),

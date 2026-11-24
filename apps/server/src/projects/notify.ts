@@ -19,7 +19,8 @@ export function notify(
   hub: EventHub,
   n: {
     to: Iterable<string>;
-    actorId: string;
+    /** Who did it. Left out for the Host's own alerts, which nobody is filtered out of. */
+    actorId?: string;
     kind: NotificationKind;
     projectId: string;
     taskId?: string;
@@ -35,7 +36,7 @@ export function notify(
       recipients.map((userId) => ({
         id: randomUUID(),
         userId,
-        actorId: n.actorId,
+        actorId: n.actorId ?? null,
         kind: n.kind,
         projectId: n.projectId,
         taskId: n.taskId ?? null,
