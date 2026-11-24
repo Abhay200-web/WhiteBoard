@@ -18,6 +18,7 @@ import { notificationRoutes } from './routes/notifications';
 import { projectRoutes } from './routes/projects';
 import { setupRoutes, type RateLimitOptions } from './routes/setup';
 import { deliverableRoutes } from './routes/deliverables';
+import { pinRoutes } from './routes/pins';
 import { taskRoutes } from './routes/tasks';
 
 export interface AppOptions {
@@ -76,6 +77,7 @@ export function buildApp({
   app.register(projectRoutes, { db, hub });
   app.register(taskRoutes, { db, hub });
   app.register(deliverableRoutes, { db, hub });
+  app.register(pinRoutes, { db });
   app.register(activityRoutes, { db, hub });
   app.register(hostSettingsRoutes, { db, dataDir });
   return app;
