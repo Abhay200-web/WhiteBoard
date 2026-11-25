@@ -18,6 +18,8 @@ export interface DesktopBridge {
    * kept in `restore-previous-*`), starts the server again, and returns the restore's report.
    */
   restoreBackup(backupDir: string, name: string): Promise<string>;
+  /** Shows a Windows notification (it stays in the Action Center). */
+  notify(title: string, body: string): Promise<void>;
 }
 
 /** The desktop bridge, or `undefined` in a plain browser (dev, E2E). */

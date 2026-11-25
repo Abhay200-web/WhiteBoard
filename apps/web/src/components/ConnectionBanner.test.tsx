@@ -1,4 +1,5 @@
 import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { SessionUser, Task } from '@whiteboard/core';
 import { http, HttpResponse, ws } from 'msw';
 import { describe, expect, it } from 'vitest';
@@ -124,5 +125,41 @@ describe('live task updates', () => {
     });
     expect(connections).toBe(2);
     await waitFor(() => expect(page.fetches()).toBeGreaterThan(before));
+  });
+
+  it('keeps an unsent comment while the connection drops and comes back', async () => {
+    mockHost({}, MIA);
+    mockProjectPage([task('t1', 'Wordmark')]);
+    server.use(
+      http.get('*/tasks/t1/comments', () => HttpResponse.json([])),
+      http.get('*/tasks/t1/history', () => HttpResponse.json([])),
+      http.get('*/tasks/t1/subtasks', () => HttpResponse.json([])),
+      http.get('*/tasks/t1/files', () => HttpResponse.json([])),
+    );
+    // Resolves with a way to drop this connection, once the app is signed in to the live feed.
+    const connected = new Promise<() => void>((resolve) => {
+      server.use(
+        events.addEventListener('connection', ({ client }) => {
+          client.addEventListener('message', () => {
+            client.send(JSON.stringify({ type: 'ready' }));
+            resolve(() => client.close());
+          });
+        }),
+      );
+    });
+    renderApp('/projects/p1?task=t1', 'tok');
+    const box = await screen.findByRole('textbox', { name: 'New comment' });
+    await userEvent.type(box, 'Try the blue version');
+    const restartHost = await connected;
+
+    restartHost();
+    await screen.findByRole('status');
+    await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument(), {
+      timeout: 3000,
+    });
+
+    expect(screen.getByRole('textbox', { name: 'New comment' })).toHaveValue(
+      'Try the blue version',
+    );
   });
 });

@@ -1,34 +1,13 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { notificationInboxSchema, type Notification } from '@whiteboard/core';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import type { Notification } from '@whiteboard/core';
 import { Button, cn } from '@whiteboard/ui';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 
 import { api } from '../lib/api';
+import { useNotificationInbox } from '../lib/notificationInbox';
+import { describeNotification } from '../lib/notificationText';
 import { formatDateTime } from '../pages/projects/format';
-
-/** One sentence per notification, e.g. "Mia assigned you Logo concepts". */
-function describe(n: Notification): string {
-  const task = n.taskTitle ?? 'a task'; // the task may have been deleted since
-  switch (n.kind) {
-    case 'assigned':
-      return `${n.actorName} assigned you ${task}`;
-    case 'mentioned':
-      return `${n.actorName} mentioned you on ${task}: “${n.detail}”`;
-    case 'commented':
-      return `${n.actorName} commented on ${task}: “${n.detail}”`;
-    case 'status':
-      return `${n.actorName} moved ${task} to ${n.detail}`;
-    case 'added_to_project':
-      return `${n.actorName} added you to ${n.projectName}`;
-    case 'access_ended':
-      return `${n.actorName}'s access ended: ${task} is now unassigned`;
-    case 'due_soon':
-      return `${task} is due within 24 hours`;
-    case 'overdue':
-      return `${task} is overdue`;
-  }
-}
 
 /**
  * The bell in the top bar: unread count, and the latest notifications in a dropdown. Clicking
@@ -39,10 +18,7 @@ export function NotificationBell() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
-  const inbox = useQuery({
-    queryKey: ['notifications'],
-    queryFn: () => api('/notifications', { schema: notificationInboxSchema }),
-  });
+  const inbox = useNotificationInbox();
   const markRead = useMutation({
     mutationFn: (ids?: string[]) =>
       api('/notifications/read', { method: 'POST', body: ids ? { ids } : {} }),
@@ -119,7 +95,7 @@ export function NotificationBell() {
                   )}
                 >
                   {n.readAt === null && <span className="sr-only">Unread: </span>}
-                  {describe(n)}
+                  {describeNotification(n)}
                   <span className="block text-xs font-normal text-muted">
                     {n.projectName} · {formatDateTime(n.createdAt)}
                   </span>

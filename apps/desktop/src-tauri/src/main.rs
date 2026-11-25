@@ -14,6 +14,7 @@ use std::time::Duration;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder};
+use tauri_plugin_notification::NotificationExt;
 
 use host::HostServer;
 
@@ -26,6 +27,7 @@ window.whiteboardDesktop = Object.freeze({
   discoverHosts: () => window.__TAURI__.core.invoke('discover_hosts'),
   restoreBackup: (backupDir, name) =>
     window.__TAURI__.core.invoke('restore_backup', { backupDir, name }),
+  notify: (title, body) => window.__TAURI__.core.invoke('show_notification', { title, body }),
 });
 "#;
 
@@ -130,6 +132,17 @@ async fn discover_hosts() -> Result<Vec<serde_json::Value>, String> {
         .map_err(|e| e.to_string())?
 }
 
+/// A Windows notification (the web app sends each new notification once).
+#[tauri::command]
+fn show_notification(app: AppHandle, title: String, body: String) -> Result<(), String> {
+    app.notification()
+        .builder()
+        .title(title)
+        .body(body)
+        .show()
+        .map_err(|e| e.to_string())
+}
+
 fn show_main(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.unminimize();
@@ -159,13 +172,15 @@ fn main() {
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             show_main(app)
         }))
+        .plugin(tauri_plugin_notification::init())
         .manage(Arc::new(HostServer::default()))
         .invoke_handler(tauri::generate_handler![
             get_mode,
             set_mode,
             start_host,
             discover_hosts,
-            restore_backup
+            restore_backup,
+            show_notification
         ])
         .setup(|app| {
             WebviewWindowBuilder::new(app, "main", WebviewUrl::default())

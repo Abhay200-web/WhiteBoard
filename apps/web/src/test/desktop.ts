@@ -18,6 +18,7 @@ export function fakeDesktop(mode: DesktopMode | null, overrides: Partial<Desktop
     startHost: vi.fn(async () => LOCAL_HOST),
     discoverHosts: vi.fn(async () => []),
     restoreBackup: vi.fn(async () => 'Restored'),
+    notify: vi.fn(async () => {}),
     ...overrides,
   };
   (window as unknown as { whiteboardDesktop?: DesktopBridge }).whiteboardDesktop = bridge;
