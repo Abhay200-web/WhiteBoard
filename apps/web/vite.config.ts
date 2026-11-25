@@ -2,10 +2,14 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
 
+import webPackage from './package.json' with { type: 'json' };
+
 const HOST = process.env.WB_DEV_HOST_URL ?? 'http://127.0.0.1:47800';
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  // The release this build belongs to; compared with the Host's version (see lib/version.ts).
+  define: { __APP_VERSION__: JSON.stringify(webPackage.version) },
   server: {
     port: 5173,
     // In dev and E2E the browser talks to the Host through the dev server, so no CORS is needed.
