@@ -1,6 +1,6 @@
 {
   "name": "@whiteboard/web",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "React + Vite UI (runs inside the desktop app; also in a plain browser for dev and E2E tests)",

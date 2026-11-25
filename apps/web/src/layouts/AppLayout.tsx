@@ -5,6 +5,8 @@ import { NavLink, Outlet } from 'react-router';
 import { useAuth } from '../auth/AuthProvider';
 import { ConnectionBanner } from '../components/ConnectionBanner';
 import { NotificationBell } from '../components/NotificationBell';
+import { UpdateBanner } from '../components/UpdateBanner';
+import { useDesktopNotifications } from '../lib/desktopNotifications';
 import { useLiveEvents } from '../lib/events';
 
 /** `who`: everyone, staff (not freelancers, who never manage a project) or admins. */
@@ -24,9 +26,11 @@ const canSee = (who: (typeof NAV)[number]['who'], role: WorkspaceRole | undefine
 export function AppLayout() {
   const { user, signOut } = useAuth();
   const live = useLiveEvents(!!user);
+  useDesktopNotifications(user?.id);
   return (
     <div className="min-h-screen">
       <ConnectionBanner status={live} />
+      <UpdateBanner />
       <header className="border-b border-line bg-surface">
         <div className="mx-auto flex h-14 max-w-6xl items-center gap-6 px-4">
           <span className="font-semibold">Whiteboard</span>

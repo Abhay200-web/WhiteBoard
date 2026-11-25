@@ -177,7 +177,14 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
   - [x] Notifications: kinds `due_soon` and `overdue`; the bell reads them as "X is due within 24 hours" / "X is overdue"
   - [x] Tests: `jobs/deadlines.test.ts` (5 cases, fake clock); `NotificationBell.test.tsx` (+1); E2E 9/9 still green
   - Left out, for later: desktop popups for these alerts (Step 5.6 covers desktop notifications). Open apps hear about them through the usual live notification ping
-- [ ] 5.6 Windows desktop notifications, version check, reconnect banner
+- [x] 5.6 Windows desktop notifications, version check, reconnect banner — 2026-11-25, branch `feat/step-5-5-deadlines` (uncommitted; the user approves commits)
+  - [x] Desktop notifications: `show_notification` command in the desktop shell (`tauri-plugin-notification`), bridge `notify()`; `lib/desktopNotifications.ts` shows each new unread notification once per person (ids kept on this PC; the first run remembers the inbox silently)
+  - [x] Version check: `lib/version.ts` + `components/UpdateBanner.tsx`; web release from `apps/web/package.json` (0.1.0), compared with `/host/info` by major.minor; "Update needed" banner
+  - [x] Reconnect banner: already built in 4.7; new test shows an unsent comment survives a drop and reconnect
+  - [x] Shared helpers: `lib/notificationInbox.ts` (inbox query for bell and notifier), `lib/notificationText.ts` (sentences, moved out of the bell)
+  - [x] Tests: `version.test.ts` (3), `UpdateBanner.test.tsx` (1), `desktopNotifications.test.tsx` (3), `ConnectionBanner.test.tsx` (+1); web 117 tests, E2E 9/9, `cargo check` of the shell passes
+  - Not clicked through by hand: the Windows toast itself (needs a Host and two users on the desktop app)
+  - Left out, for later: a single source for the release number (the server reads `apps/server/package.json`, the web reads `apps/web/package.json`; keep them equal)
 - [ ] 5.7 Auto-start, minimize-to-tray
 - [ ] 5.8 Release workflow (`.msi` on tag)
 - [ ] 5.9 Hocuspocus-in-server spike (2 days)
