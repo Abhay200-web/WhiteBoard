@@ -177,7 +177,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
   - [x] Notifications: kinds `due_soon` and `overdue`; the bell reads them as "X is due within 24 hours" / "X is overdue"
   - [x] Tests: `jobs/deadlines.test.ts` (5 cases, fake clock); `NotificationBell.test.tsx` (+1); E2E 9/9 still green
   - Left out, for later: desktop popups for these alerts (Step 5.6 covers desktop notifications). Open apps hear about them through the usual live notification ping
-- [x] 5.6 Windows desktop notifications, version check, reconnect banner — 2026-11-25, branch `feat/step-5-5-deadlines` (uncommitted; the user approves commits)
+- [x] 5.6 Windows desktop notifications, version check, reconnect banner — 2026-11-25, branch `feat/step-5-5-deadlines` (commit aec11db)
   - [x] Desktop notifications: `show_notification` command in the desktop shell (`tauri-plugin-notification`), bridge `notify()`; `lib/desktopNotifications.ts` shows each new unread notification once per person (ids kept on this PC; the first run remembers the inbox silently)
   - [x] Version check: `lib/version.ts` + `components/UpdateBanner.tsx`; web release from `apps/web/package.json` (0.1.0), compared with `/host/info` by major.minor; "Update needed" banner
   - [x] Reconnect banner: already built in 4.7; new test shows an unsent comment survives a drop and reconnect
