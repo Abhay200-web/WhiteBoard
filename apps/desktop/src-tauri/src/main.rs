@@ -13,8 +13,12 @@ use std::time::Duration;
 
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder, WindowEvent};
+use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tauri_plugin_notification::NotificationExt;
+
+/// Argument the autostart entry passes, so a start with Windows stays in the tray.
+const MINIMIZED_ARG: &str = "--minimized";
 
 use host::HostServer;
 
@@ -70,7 +74,11 @@ fn set_mode(app: AppHandle, mode: String) -> Result<(), String> {
     let file = mode_file(&app)?;
     fs::create_dir_all(file.parent().expect("config file has a folder"))
         .map_err(|e| e.to_string())?;
-    fs::write(file, mode).map_err(|e| e.to_string())
+    fs::write(file, mode).map_err(|e| e.to_string())?;
+    // Chosen once, at first run: start with Windows, in the tray. Failing here is not fatal, the
+    // app works without starting by itself.
+    let _ = app.autolaunch().enable();
+    Ok(())
 }
 
 /// Host mode only: starts the server if needed, waits until it answers, returns its address.
@@ -173,6 +181,18 @@ fn main() {
             show_main(app)
         }))
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            Some(vec![MINIMIZED_ARG]),
+        ))
+        // Closing the window keeps the app (and a Host server) running in the tray. Quit is in the
+        // tray menu.
+        .on_window_event(|window, event| {
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let _ = window.hide();
+            }
+        })
         .manage(Arc::new(HostServer::default()))
         .invoke_handler(tauri::generate_handler![
             get_mode,
@@ -183,10 +203,12 @@ fn main() {
             show_notification
         ])
         .setup(|app| {
+            let started_minimized = std::env::args().any(|arg| arg == MINIMIZED_ARG);
             WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
                 .title("Whiteboard")
                 .inner_size(1280.0, 800.0)
                 .min_inner_size(900.0, 600.0)
+                .visible(!started_minimized)
                 .initialization_script(BRIDGE)
                 .build()?;
 
