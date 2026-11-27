@@ -13,7 +13,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ## Resume here
 
-**Decision (2026-11-27, owner):** the three-PC run of section 13 (Step 5.10, manual part), the `v0.1.0` tag and the real-Host install wait until the project's code is complete. Until then no PC test is needed. **Code done on stacked branches:** Phase B (B1-B5) and Phase C steps C1 (search), C2 (calendar, saved views), C3 (project dashboard), C5 (Markdown, PDF, Word, zip and board PNG export) and C6 in part (custom task statuses). **Next code step: C4 is blocked on the owner's decision (see below); the rest of C6 goes next, one part per branch.** C4 (Host hardening) waits for the owner's decision on encrypted LAN traffic and running as a Windows service. Then C5, C6 and Phase D, as in `docs/MASTER_PLAN.md`. Each step still gets its own branch from `develop`, its checks, and an entry here. Automated E2E (`apps/web/e2e/smoke6-acceptance.spec.ts`) stays green at every step.
+**Decision (2026-11-27, owner):** the three-PC run of section 13 (Step 5.10, manual part), the `v0.1.0` tag and the real-Host install wait until the project's code is complete. Until then no PC test is needed. **Code done on stacked branches:** Phase B (B1-B5) and Phase C steps C1 (search), C2 (calendar, saved views), C3 (project dashboard), C5 (Markdown, PDF, Word, zip and board PNG export) and C6 in part (custom task statuses, notification settings and the daily summary). **Next code step: C4 is blocked on the owner's decision (see below); the rest of C6 goes next, one part per branch.** C4 (Host hardening) waits for the owner's decision on encrypted LAN traffic and running as a Windows service. Then C5, C6 and Phase D, as in `docs/MASTER_PLAN.md`. Each step still gets its own branch from `develop`, its checks, and an entry here. Automated E2E (`apps/web/e2e/smoke6-acceptance.spec.ts`) stays green at every step.
 
 **State (2026-11-13, end of day):** Phase A Parts 1, 2 and 3 are **done and merged into `develop`** (PRs #6-#11). Nothing is half-finished. **Tomorrow: start Part 4** - first 4.0 (project edit dialog) and 4.1 (Tasks API). Create the branch from `develop` (for example `feat/phase-a-tasks`). The step-by-step plan, with files, endpoints, tables and tests for every remaining step, is in **`docs/MASTER_PLAN.md`** (section 4).
 
@@ -312,7 +312,13 @@ Steps are proposed here (the master plan lists the items without a breakdown); e
   - [ ] Full settings
   - [ ] Board templates
   - [ ] More card types (table, document, heading, colour, comment)
-  - [ ] Per-user notification settings and a daily summary
+  - [x] Per-user notification settings and a daily summary — branch `feat/phase-c6-notification-settings` (stacked on `feat/phase-c6-statuses`)
+    - [x] `GET` / `PUT /me/notification-settings`: the kinds I turned off and the daily summary switch; no row means everything on and no summary (new table `notification_settings`, migration `0016`)
+    - [x] Muting is applied in `notify()`, so every sender (comments, moves, deadlines, offboarding, review) respects it; muted kinds also never reach Windows notifications, which read the bell
+    - [x] Daily summary job (`jobs/dailySummary.ts`, checked every 15 minutes): once per Host day from 08:00, one bell line per project with something to say ("Today in Brand: 2 overdue, 1 due today, 3 waiting for your review"); counts my open tasks overdue or due before midnight, and for project managers the tasks in a review status; archived projects are left out; a Host that was off at 08:00 sends it when it is back
+    - [x] Settings › Notifications: one switch per kind and the summary switch; each saves at once (`NotificationsSection.tsx`)
+    - [x] Tests: 4 server job tests (wording, once a day from 08:00, managers' review count, empty day still counted), 3 server route tests (defaults and saving, bad kinds and signed-out, a muted kind left out of the bell); 2 web tests; E2E `smoke16-notification-settings`; server 198, web 140, E2E 20/20
+    - [ ] Not done: choosing the summary hour (fixed at 08:00 Host time); a summary by email (the app has no email)
   - [ ] Incremental backups
   - [ ] Project cover images
 

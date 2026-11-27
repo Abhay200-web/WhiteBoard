@@ -20,6 +20,7 @@ import { BoardRoute, ProjectCanvasRoute } from './pages/boards/BoardPage';
 import { ProjectDashboardPage } from './pages/projects/dashboard/ProjectDashboardPage';
 import { SearchPage } from './pages/search/SearchPage';
 import { HostSection } from './pages/settings/HostSection';
+import { NotificationsSection } from './pages/settings/NotificationsSection';
 import { AccountSection, ConnectionSection } from './pages/settings/sections';
 import { SetupPage } from './pages/SetupPage';
 
@@ -75,6 +76,7 @@ const pages: RouteObject[] = [
             children: [
               { index: true, element: <Navigate to="account" replace /> },
               { path: 'account', element: <AccountSection /> },
+              { path: 'notifications', element: <NotificationsSection /> },
               { path: 'connection', element: <ConnectionSection /> },
               { path: 'host', element: <HostSection /> },
             ],

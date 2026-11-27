@@ -20,5 +20,7 @@ export function describeNotification(n: Notification): string {
       return `${task} is due within 24 hours`;
     case 'overdue':
       return `${task} is overdue`;
+    case 'daily_summary':
+      return `Today in ${n.projectName}: ${n.detail}`;
   }
 }
