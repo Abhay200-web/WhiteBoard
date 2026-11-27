@@ -25,6 +25,7 @@ export default defineConfig({
         '/backups',
         '/projects',
         '/boards',
+        '/collab',
         '/people',
         '/tasks',
         '/subtasks',

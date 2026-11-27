@@ -13,6 +13,7 @@ import {
   WORKSPACE_ROLES,
 } from '@whiteboard/core';
 import {
+  blob,
   index,
   integer,
   primaryKey,
@@ -527,4 +528,21 @@ export const boardItems = sqliteTable(
     index('board_items_board_idx').on(t.boardId),
     uniqueIndex('board_items_child_idx').on(t.childBoardId),
   ],
+);
+
+/**
+ * Live-edit history of a board (Yjs updates, applied in order when the board loads). When there
+ * are many, they are compacted into one row (see `realtime/collab.ts`).
+ */
+export const boardUpdates = sqliteTable(
+  'board_updates',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    boardId: text('board_id')
+      .notNull()
+      .references(() => boards.id, { onDelete: 'cascade' }),
+    data: blob('data', { mode: 'buffer' }).notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [index('board_updates_board_idx').on(t.boardId)],
 );

@@ -26,6 +26,16 @@ export const boardItemSchema = z.object({
 });
 export type BoardItem = z.infer<typeof boardItemSchema>;
 
+/** A child board's place on its parent, as the live document holds it (see realtime). */
+export const itemGeometrySchema = z.object({
+  childBoardId: z.string(),
+  x: z.number().finite(),
+  y: z.number().finite(),
+  width: z.number().finite().positive(),
+  height: z.number().finite().positive(),
+});
+export type ItemGeometry = z.infer<typeof itemGeometrySchema>;
+
 /** One step of the trail shown above a board: the board's name and id. */
 export const breadcrumbSchema = z.object({ id: z.string(), title: z.string() });
 

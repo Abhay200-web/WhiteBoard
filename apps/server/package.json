@@ -13,7 +13,9 @@
     "test": "vitest run --passWithNoTests"
   },
   "devDependencies": {
+    "@hocuspocus/provider": "4.9.0",
     "@types/better-sqlite3": "9.6.0",
+    "@types/ws": "^8.18.2",
     "@whiteboard/config": "workspace:*",
     "tsx": "4.23.15"
   },
@@ -21,7 +23,7 @@
     "@fastify/cors": "^11.4.1",
     "@fastify/multipart": "^10.1.8",
     "@fastify/rate-limit": "^11.2.2",
-    "@fastify/websocket": "^11.3.7",
+    "@hocuspocus/server": "4.9.0",
     "@whiteboard/core": "workspace:*",
     "@whiteboard/db": "workspace:*",
     "better-sqlite3": "13.0.3",
@@ -29,6 +31,8 @@
     "drizzle-orm": "0.45.4",
     "fastify": "5.12.8",
     "file-type": "^22.3.0",
-    "sharp": "^0.35.5"
+    "sharp": "^0.35.5",
+    "ws": "8.23.0",
+    "yjs": "13.6.33"
   }
 }
