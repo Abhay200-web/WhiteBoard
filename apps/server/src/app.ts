@@ -17,6 +17,7 @@ import { inviteRoutes } from './routes/invites';
 import { memberRoutes } from './routes/members';
 import { notificationRoutes } from './routes/notifications';
 import { boardRoutes } from './routes/boards';
+import { reportRoutes } from './routes/report';
 import { savedFilterRoutes } from './routes/savedFilters';
 import { searchRoutes } from './routes/search';
 import { projectRoutes } from './routes/projects';
@@ -83,6 +84,7 @@ export function buildApp({
   app.register(boardRoutes, { db });
   app.register(searchRoutes, { db });
   app.register(savedFilterRoutes, { db });
+  app.register(reportRoutes, { db });
 
   app.register(taskRoutes, { db, hub });
   app.register(deliverableRoutes, { db, hub });
