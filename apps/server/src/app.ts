@@ -25,6 +25,7 @@ import { projectRoutes } from './routes/projects';
 import { setupRoutes, type RateLimitOptions } from './routes/setup';
 import { deliverableRoutes } from './routes/deliverables';
 import { pinRoutes } from './routes/pins';
+import { statusRoutes } from './routes/statuses';
 import { taskRoutes } from './routes/tasks';
 
 export interface AppOptions {
@@ -88,6 +89,7 @@ export function buildApp({
   app.register(reportRoutes, { db });
   app.register(exportRoutes, { db, dataDir });
 
+  app.register(statusRoutes, { db, hub });
   app.register(taskRoutes, { db, hub });
   app.register(deliverableRoutes, { db, hub });
   app.register(pinRoutes, { db });

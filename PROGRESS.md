@@ -13,7 +13,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ## Resume here
 
-**Decision (2026-11-27, owner):** the three-PC run of section 13 (Step 5.10, manual part), the `v0.1.0` tag and the real-Host install wait until the project's code is complete. Until then no PC test is needed. **Code done on stacked branches:** Phase B (B1-B5) and Phase C steps C1 (search), C2 (calendar, saved views), C3 (project dashboard) and C5 (Markdown, PDF, Word, zip and board PNG export). **Next code step: C4 is blocked on the owner's decision (see below); C6 can go next.** C4 (Host hardening) waits for the owner's decision on encrypted LAN traffic and running as a Windows service. Then C5, C6 and Phase D, as in `docs/MASTER_PLAN.md`. Each step still gets its own branch from `develop`, its checks, and an entry here. Automated E2E (`apps/web/e2e/smoke6-acceptance.spec.ts`) stays green at every step.
+**Decision (2026-11-27, owner):** the three-PC run of section 13 (Step 5.10, manual part), the `v0.1.0` tag and the real-Host install wait until the project's code is complete. Until then no PC test is needed. **Code done on stacked branches:** Phase B (B1-B5) and Phase C steps C1 (search), C2 (calendar, saved views), C3 (project dashboard), C5 (Markdown, PDF, Word, zip and board PNG export) and C6 in part (custom task statuses). **Next code step: C4 is blocked on the owner's decision (see below); the rest of C6 goes next, one part per branch.** C4 (Host hardening) waits for the owner's decision on encrypted LAN traffic and running as a Windows service. Then C5, C6 and Phase D, as in `docs/MASTER_PLAN.md`. Each step still gets its own branch from `develop`, its checks, and an entry here. Automated E2E (`apps/web/e2e/smoke6-acceptance.spec.ts`) stays green at every step.
 
 **State (2026-11-13, end of day):** Phase A Parts 1, 2 and 3 are **done and merged into `develop`** (PRs #6-#11). Nothing is half-finished. **Tomorrow: start Part 4** - first 4.0 (project edit dialog) and 4.1 (Tasks API). Create the branch from `develop` (for example `feat/phase-a-tasks`). The step-by-step plan, with files, endpoints, tables and tests for every remaining step, is in **`docs/MASTER_PLAN.md`** (section 4).
 
@@ -299,7 +299,22 @@ Steps are proposed here (the master plan lists the items without a breakdown); e
   - [x] PNG of the board: a "Download PNG" button on the board toolbar draws every card and child board from the live document onto a canvas in the browser (no image library on the Host), twice as large for sharpness (capped at 8000 pixels a side), light palette whatever the theme; pictures are fetched and drawn, task cards show their title and status (`lib/boardPicture.ts`, `BoardCanvas.tsx`)
   - [x] PNG tests: 4 web tests (area and margin, scale cap, text wrapping, every card kind drawn on a recording canvas); E2E `smoke14-board-png` (file name, PNG signature, picture width); web 136, E2E 18/18
   - [ ] Not done: the Word and PDF files have no board picture or images; the PNG shows one board, not its child boards' contents; a picture that cannot be read is drawn as its name
-- [ ] C6 Full settings, board templates, more card types (table, document, heading, colour, comment), custom task statuses, per-user notification settings and a daily summary, incremental backups, project cover images
+- [~] C6 Full settings, board templates, more card types (table, document, heading, colour, comment), custom task statuses, per-user notification settings and a daily summary, incremental backups, project cover images — 2026-11-27, done in parts
+  - [x] Custom task statuses — branch `feat/phase-c6-statuses` (stacked on `feat/phase-c5-board-png`)
+    - [x] `POST /projects/:id/statuses` (name and kind, goes at the end), `PATCH /projects/:id/statuses/:statusId` (rename), `PUT /projects/:id/statuses/order` (the full list, every status once), `DELETE /projects/:id/statuses/:statusId`; managers and admins only, members read; every change answers with the new list (`routes/statuses.ts`, which now also holds `GET /projects/:id/statuses`)
+    - [x] Each status keeps one of the six kinds, which decides how it behaves; a delete is refused while tasks are in the status (409 `status_in_use`) or when it is the last of its kind (409 `last_of_kind`), because review and approval move tasks to a status of each kind
+    - [x] New tasks, "send for review" and the review decision use the first status of the kind in the managers' order (the two review-flow lookups in `routes/deliverables.ts` had no order before)
+    - [x] Live: a `statuses.changed` event makes open apps on the project reload their columns, tasks and dashboard (`lib/events.ts`)
+    - [x] Project page: a "Task statuses" card for managers (add with "Behaves like", rename, move up or down, delete, the Host's reason shown when refused) (`ProjectStatusesCard.tsx`)
+    - [x] Board: a column linked to a status that was deleted acts as not linked (a dropped task is not moved)
+    - [x] Tests: 5 server tests (add and rename, reorder and bad lists, delete rules, first To do, access); 2 web tests (manager actions and refusal, hidden from artists); E2E `smoke15-statuses`; server 191, web 138, E2E 19/19
+    - [ ] Not done: a colour per status; moving a status's tasks elsewhere as part of deleting it (they must be moved first)
+  - [ ] Full settings
+  - [ ] Board templates
+  - [ ] More card types (table, document, heading, colour, comment)
+  - [ ] Per-user notification settings and a daily summary
+  - [ ] Incremental backups
+  - [ ] Project cover images
 
 ---
 

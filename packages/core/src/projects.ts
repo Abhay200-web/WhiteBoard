@@ -38,6 +38,11 @@ export const DEFAULT_TASK_STATUSES: readonly { name: string; kind: TaskStatusKin
   { name: 'Done', kind: 'done' },
 ];
 
+/** How each kind of status behaves, named after its default status ("Behaves like: In review"). */
+export const TASK_STATUS_KIND_LABEL = Object.fromEntries(
+  DEFAULT_TASK_STATUSES.map((s) => [s.kind, s.name]),
+) as Record<TaskStatusKind, string>;
+
 /** A rich-text document (TipTap/ProseMirror JSON). The server stores it as given. */
 export const richTextSchema = z.record(z.string(), z.unknown());
 export type RichText = z.infer<typeof richTextSchema>;

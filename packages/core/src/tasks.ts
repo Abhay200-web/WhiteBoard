@@ -41,6 +41,23 @@ export const taskStatusSchema = z.object({
 export type TaskStatus = z.infer<typeof taskStatusSchema>;
 export const taskStatusListSchema = z.array(taskStatusSchema);
 
+/**
+ * Managers shape a project's statuses: add, rename, reorder, delete. Each status keeps a kind,
+ * which decides how it behaves (who may move tasks there, what review does), so a project
+ * always keeps at least one status of every kind.
+ */
+const statusName = z.string().trim().min(1, 'Name is required').max(60);
+export const createTaskStatusRequestSchema = z.object({
+  name: statusName,
+  kind: z.enum(TASK_STATUS_KINDS),
+});
+export type CreateTaskStatusRequest = z.infer<typeof createTaskStatusRequestSchema>;
+export const updateTaskStatusRequestSchema = z.object({ name: statusName });
+/** Every status of the project, in the new order. */
+export const reorderTaskStatusesRequestSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1),
+});
+
 export const taskSchema = z.object({
   id: z.string(),
   projectId: z.string(),
