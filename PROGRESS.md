@@ -222,8 +222,16 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
   - [x] Rules: the main board can't be trashed; trash and restore need a project manager (403 otherwise); anything in another project, or inside a trashed board, is 404
   - [x] `/boards` added to the dev proxy list (`apps/web/vite.config.ts`)
   - [x] Tests: 9 route tests; server 151, core 6, db, E2E 10/10 all pass
-  - [ ] Realtime sync of boards (B3)
-- [ ] B3 Realtime (Hocuspocus inside the Host, presence, offline cache)
+- [~] B3 Realtime (Hocuspocus inside the Host) — 2026-11-27, branch `feat/phase-b3-realtime` (stacked on `feat/phase-b2-boards`: merge B2 first)
+  - [x] One port: a single upgrade router sends `/collab` (boards) and `/events` (notifications) to their handlers; `@fastify/websocket` removed; `/events` tested on the new path (`realtime/router.ts`, `routes/events.ts`)
+  - [x] Live documents: one Yjs document per board, stored as incremental updates in `board_updates` (migration `0013`), replayed on load; compacted into one row after 200 updates (`realtime/collab.ts`)
+  - [x] Sign-in and access: a connection needs a valid session and access to the board's project; a removed member's open editor is refused at their next change
+  - [x] Layout projector: on each store, child-board positions from the document are written to `board_items`; the document is topped up with boards created over REST
+  - [x] Tests: 7 realtime tests (two editors sync, wrong token, outsider refused, layout stored, survives restart, compaction, removed member refused); server 158 tests; desktop sidecar builds and its smoke test passes; E2E 10/10
+  - [ ] Search rows for the projector: not written yet, because cards (B4) are what there is to search; Phase C adds full-text search
+  - [ ] Client side: the web board view with live editing, presence cursors (Yjs awareness) and the offline cache (IndexedDB). Comes with B4, when the board has cards to show
+  - [ ] Not measured: memory and CPU with many boards and clients; the sidecar smoke test does not yet open `/collab`
+  - [ ] Left as is for now: `/collab` traffic is not encrypted (plain WebSocket on the LAN). Encrypted LAN traffic is listed under Phase C (Host hardening)
 - [ ] B4 Cards (note, image, file, link, column, line/arrow; undo / redo; context menus)
 - [ ] B5 Task cards (drag a task onto a board, kept in sync with the kanban)
 

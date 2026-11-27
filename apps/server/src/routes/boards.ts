@@ -13,10 +13,9 @@ import { boardItems, boards, projects, type Db } from '@whiteboard/db';
 import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 
+import { findViewableBoard, type BoardRow } from '../boards/tree';
 import { authenticate, badRequest, requireRole, sendError, ALL_ROLES } from '../plugins/auth';
 import { canManageProject, canViewProject } from '../projects/access';
-
-type BoardRow = typeof boards.$inferSelect;
 
 export const boardRoutes: FastifyPluginAsync<{ db: Db }> = async (app, { db }) => {
   const signedIn = [authenticate(db), requireRole(ALL_ROLES)];
@@ -32,24 +31,6 @@ export const boardRoutes: FastifyPluginAsync<{ db: Db }> = async (app, { db }) =
       updatedAt: row.updatedAt.getTime(),
       trashedAt: row.trashedAt?.getTime() ?? null,
     });
-  }
-
-  /** The board that `boardId` sits on, or null for a root board. */
-  function parentOf(boardId: string): BoardRow | null {
-    const link = db
-      .select({ boardId: boardItems.boardId })
-      .from(boardItems)
-      .where(eq(boardItems.childBoardId, boardId))
-      .get();
-    if (!link) return null;
-    return db.select().from(boards).where(eq(boards.id, link.boardId)).get() ?? null;
-  }
-
-  /** The chain from the project's root board down to `row` (inclusive). */
-  function trail(row: BoardRow): BoardRow[] {
-    const chain: BoardRow[] = [row];
-    for (let up = parentOf(row.id); up; up = parentOf(up.id)) chain.unshift(up);
-    return chain;
   }
 
   function itemsOf(boardId: string) {
@@ -80,29 +61,19 @@ export const boardRoutes: FastifyPluginAsync<{ db: Db }> = async (app, { db }) =
     });
   }
 
-  /**
-   * Loads a board the caller may view. Replies 404 for unknown boards, for boards in other
-   * people's projects (no probing for ids), and for boards in the trash or nested in a trashed
-   * board (`includeTrashed` lets restore reach the trashed board itself, not one above it).
-   */
+  /** Loads a board the caller may view, or replies 404 (see `findViewableBoard`). */
   function loadBoard(
     request: FastifyRequest,
     reply: FastifyReply,
     { includeTrashed = false }: { includeTrashed?: boolean } = {},
   ): { row: BoardRow; chain: BoardRow[] } | null {
     const { id } = request.params as { id: string };
-    const row = db.select().from(boards).where(eq(boards.id, id)).get();
-    if (!row || !canViewProject(db, request.auth!, row.projectId)) {
+    const loaded = findViewableBoard(db, request.auth!, id, { includeTrashed });
+    if (!loaded) {
       void sendError(reply, 404, 'not_found', 'Board not found');
       return null;
     }
-    const chain = trail(row);
-    const above = chain.slice(0, -1).some((b) => b.trashedAt);
-    if (above || (row.trashedAt && !includeTrashed)) {
-      void sendError(reply, 404, 'not_found', 'Board not found');
-      return null;
-    }
-    return { row, chain };
+    return loaded;
   }
 
   /** Trash and restore are for project managers and admins, not every viewer. */

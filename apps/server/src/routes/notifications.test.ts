@@ -1,6 +1,9 @@
+import type { AddressInfo } from 'node:net';
+
 import type { Notification } from '@whiteboard/core';
 import { memberships, notifications } from '@whiteboard/db';
 import { eq } from 'drizzle-orm';
+import WebSocket from 'ws';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { bearer, createTestHost, seedUser, setupOwner, type TestHost } from '../test-helpers';
@@ -190,12 +193,18 @@ describe('reading', () => {
 describe('live /events', () => {
   /** Opens a live connection and collects what the Host sends. */
   async function connect(token: string) {
-    await host.app.ready();
-    const socket = await host.app.injectWS('/events');
+    // A real port on this machine, as the desktop app uses: /events shares it with /collab.
+    if (!host.app.server.listening) await host.app.listen({ port: 0, host: '127.0.0.1' });
+    const { port } = host.app.server.address() as AddressInfo;
+    const socket = new WebSocket(`ws://127.0.0.1:${port}/events`);
     const received: string[] = [];
     let closed: number | null = null;
-    socket.on('message', (data: { toString(): string }) => received.push(data.toString()));
-    socket.on('close', (code: number) => (closed = code));
+    socket.on('message', (data) => received.push(data.toString()));
+    socket.on('close', (code) => (closed = code));
+    await new Promise((resolve, reject) => {
+      socket.once('open', resolve);
+      socket.once('error', reject);
+    });
     socket.send(JSON.stringify({ type: 'auth', token }));
     return { socket, received, closedWith: () => closed };
   }
