@@ -101,7 +101,7 @@ export function loadProjectExport(
 }
 
 /** Local calendar date as YYYY-MM-DD, or "none". */
-function day(time: number | null): string {
+export function day(time: number | null): string {
   if (time === null) return 'none';
   const d = new Date(time);
   const pad = (n: number) => String(n).padStart(2, '0');
