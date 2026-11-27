@@ -27,7 +27,10 @@ import { useNavigate } from 'react-router';
 import type * as Y from 'yjs';
 
 import { api, errorText } from '../../lib/api';
+import { useStatuses } from '../../pages/projects/tasks/queries';
+import { taskSchema, type Task } from '@whiteboard/core';
 import {
+  columnAt,
   createUndoManager,
   editField,
   patchCard,
@@ -39,6 +42,7 @@ import {
 } from '../../lib/cards';
 import { CardBody } from './CardBody';
 import { FilePickDialog, LinkDialog } from './AddDialogs';
+import { TaskPickDialog } from './TaskPickDialog';
 
 /** Positions snap to this grid, in board units. */
 const GRID = 8;
@@ -50,6 +54,7 @@ const SIZE = {
   link: { width: 260, height: 120 },
   column: { width: 260, height: 320 },
   line: { width: 160, height: 80 },
+  task: { width: 220, height: 110 },
 } as const;
 
 /** How far a duplicate is offset from its original, in board units. */
@@ -134,7 +139,7 @@ export function BoardCanvas({
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [editing, setEditing] = useState<string | null>(null);
   const [preview, setPreview] = useState<Map<string, CanvasItem>>(new Map());
-  const [dialog, setDialog] = useState<null | 'link' | 'image' | 'file'>(null);
+  const [dialog, setDialog] = useState<null | 'link' | 'image' | 'file' | 'task'>(null);
   const [menu, setMenu] = useState<MenuState | null>(null);
   const drag = useRef<Drag | null>(null);
   const previewRef = useRef(preview);
@@ -305,6 +310,17 @@ export function BoardCanvas({
         }
       }
     }
+    // A task card dropped on a column linked to a status moves the task to that status.
+    for (const [id, shape] of previewRef.current) {
+      const card = cardsById.get(id);
+      if (card?.kind !== 'task') continue;
+      const over = columnAt(
+        cards,
+        { x: shape.x + shape.width / 2, y: shape.y + shape.height / 2 },
+        id,
+      );
+      if (over?.statusId) dropOnStatus(card.taskId, over.statusId);
+    }
     setPreviewBoth(new Map());
   }
 
@@ -413,6 +429,36 @@ export function BoardCanvas({
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['board', boardId] }),
   });
 
+  const statuses = useStatuses(projectId);
+  const statusName = new Map((statuses.data ?? []).map((s) => [s.id, s.name]));
+
+  // A task dropped on a column linked to a status moves to that status (the Host checks the move).
+  const moveTask = useMutation({
+    mutationFn: ({ taskId, statusId }: { taskId: string; statusId: string }) =>
+      api(`/tasks/${taskId}`, { method: 'PATCH', body: { statusId }, schema: taskSchema }),
+    onSuccess: (task: Task) => {
+      queryClient.setQueryData(['task', task.id], task);
+      void queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
+    },
+  });
+  function dropOnStatus(taskId: string, statusId: string) {
+    const current = queryClient.getQueryData<Task>(['task', taskId]);
+    if (current?.statusId !== statusId) moveTask.mutate({ taskId, statusId });
+  }
+
+  function addTaskCard(taskId: string) {
+    const { width, height } = SIZE.task;
+    writeCard(doc, {
+      id: crypto.randomUUID(),
+      kind: 'task',
+      ...centreFor(width, height),
+      width,
+      height,
+      taskId,
+    });
+    setDialog(null);
+  }
+
   const selectedCard = selected.size === 1 ? [...selected][0]! : null;
   const selectedShape = selectedCard ? shown.find((s) => s.id === selectedCard) : undefined;
   const menuCard = menu ? cardsById.get(menu.id) : undefined;
@@ -442,6 +488,9 @@ export function BoardCanvas({
         <Button variant="secondary" onClick={() => setDialog('link')}>
           Link
         </Button>
+        <Button variant="secondary" onClick={() => setDialog('task')}>
+          Task
+        </Button>
         <Button variant="secondary" loading={newBoard.isPending} onClick={() => newBoard.mutate()}>
           Board
         </Button>
@@ -455,6 +504,11 @@ export function BoardCanvas({
           Drag the background to move around. Scroll to zoom. Right-click an item for more.
         </span>
       </div>
+      {errorText(moveTask.error) && (
+        <p role="alert" className="text-sm text-danger">
+          {errorText(moveTask.error)}
+        </p>
+      )}
       {errorText(trashBoard.error) && (
         <p role="alert" className="text-sm text-danger">
           {errorText(trashBoard.error)}
@@ -506,6 +560,12 @@ export function BoardCanvas({
               {card && (
                 <CardBody
                   card={card}
+                  projectId={projectId}
+                  linkedStatus={
+                    card.kind === 'column' && card.statusId
+                      ? statusName.get(card.statusId)
+                      : undefined
+                  }
                   editing={editing === card.id}
                   onText={(value) => {
                     const patch = editField(card, value);
@@ -549,6 +609,26 @@ export function BoardCanvas({
                 label="Rename"
                 onSelect={() => {
                   setEditing(menuCard.id);
+                  setMenu(null);
+                }}
+              />
+            )}
+            {menuCard?.kind === 'column' &&
+              (statuses.data ?? []).map((s) => (
+                <MenuItem
+                  key={s.id}
+                  label={`Link to ${s.name}`}
+                  onSelect={() => {
+                    patchCard(doc, menuCard.id, { statusId: s.id });
+                    setMenu(null);
+                  }}
+                />
+              ))}
+            {menuCard?.kind === 'column' && menuCard.statusId && (
+              <MenuItem
+                label="Unlink status"
+                onSelect={() => {
+                  patchCard(doc, menuCard.id, { statusId: null });
                   setMenu(null);
                 }}
               />
@@ -607,6 +687,13 @@ export function BoardCanvas({
         )}
       </div>
 
+      {dialog === 'task' && (
+        <TaskPickDialog
+          projectId={projectId}
+          onPick={addTaskCard}
+          onClose={() => setDialog(null)}
+        />
+      )}
       {dialog === 'link' && (
         <LinkDialog boardId={boardId} onPreview={addLinkCard} onClose={() => setDialog(null)} />
       )}

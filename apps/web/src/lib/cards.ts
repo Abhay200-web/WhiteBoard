@@ -70,3 +70,25 @@ export function editField(card: Card, value: string): Partial<Card> | null {
   if (card.kind === 'column') return { title: value };
   return null;
 }
+
+/**
+ * The column a point (for example, the middle of a dropped card) is over, if any. The column
+ * drawn on top wins. `exclude` is the card being dropped, so it never counts as its own column.
+ */
+export function columnAt(
+  cards: readonly Card[],
+  point: { x: number; y: number },
+  exclude?: string,
+): Extract<Card, { kind: 'column' }> | null {
+  let found: Extract<Card, { kind: 'column' }> | null = null;
+  for (const card of cards) {
+    if (card.kind !== 'column' || card.id === exclude) continue;
+    const inside =
+      point.x >= card.x &&
+      point.x <= card.x + card.width &&
+      point.y >= card.y &&
+      point.y <= card.y + card.height;
+    if (inside) found = card; // later cards are drawn on top
+  }
+  return found;
+}

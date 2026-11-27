@@ -251,9 +251,16 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
   - [ ] Not done: moving a column moves the cards on it (needs a grouping rule); lines are not resizable by their ends yet (they follow the box)
   - [ ] Found while testing: development builds run effects twice, so anything that destroys a Yjs object in an effect cleanup must not do it on the first run (the undo manager was switched off this way)
 
-- [ ] B5 Task cards (drag a task onto a board, kept in sync with the kanban)
+- [x] B5 Task cards (drag a task onto a board, kept in sync with the kanban) — 2026-11-27, branch `feat/phase-b5-task-cards` (stacked on B4b)
+  - [x] Task card: a reference to a project task (`taskCardSchema`); its title, status, due date and people are read from the task (`components/board/TaskBody.tsx`), refreshed by the live events
+  - [x] Task picker on the board (Task button): lists the project's tasks, searchable
+  - [x] Column linked to a status: right-click a column → "Link to <status>" / "Unlink status"; the column says where dropped tasks go
+  - [x] Drop rule: a task card dropped on a column linked to a status moves the task there through the normal task update, so the Host's move rules apply and a refused move is shown on the board; the kanban updates through the existing task events
+  - [x] Tests: core shape tests; web test for finding the column under a point; E2E `smoke9-task-cards` (task added, column linked, dragged away then into the column, kanban shows it under "In progress"); web 122, core 9, E2E 13/13
+  - [ ] Not tested: the other direction, a task moved on the kanban updating its card on an open board live. The events path is in place, but the E2E only checks board → kanban. Undo does not undo a status move (it undoes only the board's own changes)
+  - [ ] Not automated: two computers over the LAN (the Phase B exit wording). Covered on one machine with two browsers; the three-PC run is the manual step, deferred until all code is complete (see Resume here)
 
-**Exit:** two people edit one board live over the LAN; a task card moved on the board updates the kanban.
+**Exit:** two people edit one board live over the LAN; a task card moved on the board updates the kanban. Met on one machine with two browsers (E2E); the LAN check is part of the three-PC run.
 
 ---
 

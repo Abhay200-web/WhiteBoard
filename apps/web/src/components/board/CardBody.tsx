@@ -3,16 +3,22 @@ import { Button } from '@whiteboard/ui';
 
 import { fetchFileBlob } from '../../lib/files';
 import { saveBlob, useFileLink } from '../FilePreview';
+import { TaskBody } from './TaskBody';
 
 /** What is inside a card, by kind. The place and size are drawn by the board around it. */
 export function CardBody({
   card,
+  projectId,
   editing,
+  linkedStatus,
   onText,
   onDoneEditing,
 }: {
   card: Card;
+  projectId: string;
   editing: boolean;
+  /** The name of the task status a column is linked to, if any. */
+  linkedStatus?: string;
   /** The new text of a note, or the new title of a column. */
   onText: (text: string) => void;
   onDoneEditing: () => void;
@@ -55,10 +61,17 @@ export function CardBody({
           <p className="border-b border-line px-3 py-2 text-sm font-semibold">
             {card.title || 'Untitled column'}
           </p>
+          {linkedStatus && (
+            <p className="px-3 pt-2 text-xs text-muted">
+              Tasks dropped here become: {linkedStatus}
+            </p>
+          )}
         </div>
       );
     case 'line':
       return <LineBody card={card} />;
+    case 'task':
+      return <TaskBody taskId={card.taskId} projectId={projectId} />;
     case 'image':
       return <ImageBody fileId={card.fileId} name={card.name} />;
     case 'file':
