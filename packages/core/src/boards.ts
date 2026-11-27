@@ -54,6 +54,8 @@ export const createBoardRequestSchema = z.object({
   title: boardTitle.default('Untitled board'),
   x: z.number().finite().default(0),
   y: z.number().finite().default(0),
+  /** Start the board with a template's cards (see `boardTemplates.ts`). */
+  templateId: z.string().min(1).optional(),
 });
 export type CreateBoardRequest = z.infer<typeof createBoardRequestSchema>;
 

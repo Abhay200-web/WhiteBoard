@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import type { BoardItem, Card, LinkPreview } from '@whiteboard/core';
+import { BOARD_ITEM_SIZE, type BoardItem, type Card, type LinkPreview } from '@whiteboard/core';
 import {
   boardToScreen,
   itemsInRect,
@@ -26,6 +26,7 @@ import {
 import { useNavigate } from 'react-router';
 import type * as Y from 'yjs';
 
+import { useAuth } from '../../auth/AuthProvider';
 import { api, errorText } from '../../lib/api';
 import { boardPng, type PictureTask } from '../../lib/boardPicture';
 import { fetchFileBlob } from '../../lib/files';
@@ -45,6 +46,7 @@ import {
 } from '../../lib/cards';
 import { CardBody } from './CardBody';
 import { FilePickDialog, LinkDialog } from './AddDialogs';
+import { NewBoardDialog, SaveTemplateDialog } from './TemplateDialogs';
 import { TaskPickDialog } from './TaskPickDialog';
 
 /** Positions snap to this grid, in board units. */
@@ -145,7 +147,10 @@ export function BoardCanvas({
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [editing, setEditing] = useState<string | null>(null);
   const [preview, setPreview] = useState<Map<string, CanvasItem>>(new Map());
-  const [dialog, setDialog] = useState<null | 'link' | 'image' | 'file' | 'task'>(null);
+  const [dialog, setDialog] = useState<
+    null | 'link' | 'image' | 'file' | 'task' | 'board' | 'template'
+  >(null);
+  const { user } = useAuth();
   const [menu, setMenu] = useState<MenuState | null>(null);
   const drag = useRef<Drag | null>(null);
   const previewRef = useRef(preview);
@@ -421,17 +426,6 @@ export function BoardCanvas({
     setSelected(new Set([id]));
   }
 
-  const newBoard = useMutation({
-    mutationFn: () => {
-      const { x, y } = centreFor(240, 160);
-      return api(`/boards/${boardId}/boards`, {
-        method: 'POST',
-        body: { title: 'New board', x, y },
-      });
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['board', boardId] }),
-  });
-
   // Moving a child board to the trash is for managers; the Host refuses others and says so.
   const trashBoard = useMutation({
     mutationFn: (childId: string) => api(`/boards/${childId}/trash`, { method: 'POST' }),
@@ -531,7 +525,7 @@ export function BoardCanvas({
         <Button variant="secondary" onClick={() => setDialog('task')}>
           Task
         </Button>
-        <Button variant="secondary" loading={newBoard.isPending} onClick={() => newBoard.mutate()}>
+        <Button variant="secondary" onClick={() => setDialog('board')}>
           Board
         </Button>
         <Button variant="ghost" disabled={undo.undoStack.length === 0} onClick={() => undo.undo()}>
@@ -543,6 +537,11 @@ export function BoardCanvas({
         <Button variant="ghost" loading={picture.isPending} onClick={() => picture.mutate()}>
           Download PNG
         </Button>
+        {user?.role !== 'guest' && (
+          <Button variant="ghost" onClick={() => setDialog('template')}>
+            Save as template
+          </Button>
+        )}
         <span className="self-center text-xs text-muted">
           Drag the background to move around. Scroll to zoom. Right-click an item for more.
         </span>
@@ -735,6 +734,16 @@ export function BoardCanvas({
         )}
       </div>
 
+      {dialog === 'board' && (
+        <NewBoardDialog
+          boardId={boardId}
+          at={centreFor(BOARD_ITEM_SIZE.width, BOARD_ITEM_SIZE.height)}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog === 'template' && (
+        <SaveTemplateDialog title={title} cards={cards} onClose={() => setDialog(null)} />
+      )}
       {dialog === 'task' && (
         <TaskPickDialog
           projectId={projectId}
