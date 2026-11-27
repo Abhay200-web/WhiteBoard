@@ -186,18 +186,22 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
   - Not clicked through by hand: the Windows toast itself (needs a Host and two users on the desktop app)
   - Left out, for later: a single source for the release number (the server reads `apps/server/package.json`, the web reads `apps/web/package.json`; keep them equal)
 - [ ] 5.7 Auto-start, minimize-to-tray
-- [x] 5.8 Release workflow (`.msi` on tag) — 2026-11-26, branch `feat/step-5-8-release` (from develop, uncommitted)
+- [x] 5.8 Release workflow (`.msi` on tag) — 2026-11-26, branch `feat/step-5-8-release` (from develop, commit 19074bc)
   - [x] `.github/workflows/release.yml`: on a `v*` tag, checks that the tag matches `tauri.conf.json`'s version, runs format, lint, typecheck and tests, builds the `.msi` on `windows-latest`, and publishes a GitHub release with the `.msi` and a SHA-256 checksum file
   - [x] Installer build verified locally (`pnpm --filter @whiteboard/desktop installer`, `Whiteboard_0.1.0_x64_en-US.msi`); checksum line checked
   - Not verified yet: the workflow itself (needs a pushed tag such as `v0.1.0`), and the tests on the Windows runner (CI runs them only on Linux)
   - Open: install the `.msi` on a clean PC (the release exit check); the installer is not code-signed, so Windows SmartScreen will warn until a certificate is bought (the plan does not cover one)
-- [x] 5.9 Hocuspocus-in-server spike (2 days) — 2026-11-26, branch `feat/step-5-8-release` (uncommitted; findings in `docs/adr/0003-realtime-boards.md`, no product code)
+- [x] 5.9 Hocuspocus-in-server spike (2 days) — 2026-11-26, branch `feat/step-5-8-release` (commit afac9d9; findings in `docs/adr/0003-realtime-boards.md`, no product code)
   - [x] Hocuspocus 4.9 runs in the Host server's process and port: `crossws.handleUpgrade` from one `upgrade` listener
   - [x] Auth refusal, two-way sync, concurrent edits converge, persistence across restart, 20 clients on 5 boards (6/6 checks), on the pinned Node 22 bundle
   - [x] Found: `@fastify/websocket` clashes with Hocuspocus on one port, so `/events` must move to the same manual router in Phase B; esbuild needs a `createRequire` banner for the ESM bundle
   - Not measured: server memory under load, more than 20 clients, a second PC, the real session check (the spike used a fixed token)
   - Spike code is in the scratchpad only, not kept in the repo (say if you want it committed under `docs/` or `apps/`)
 - [ ] 5.10 **§13 end-to-end scenario green** (Playwright in CI + 3 office PCs) → tag `v0.1.0`
+  - [x] Playwright spec `apps/web/e2e/smoke6-acceptance.spec.ts` covers §13 steps 1-10, 12, 13 (2026-11-27, branch `feat/step-5-8-release`, uncommitted); full E2E 10/10 passes locally
+  - [ ] Not automated, by design: step 5 Windows toast, step 11 time-shifted reminders (server job tests cover them), step 13 restore onto a spare PC, step 14 Host restart
+  - [ ] Note: §13 step 10 says the task ends in "Done"; the app moves it to "Approved" on approve (the spec asserts Approved)
+  - [ ] Run by hand on 3 PCs (1 Host + 2 clients), then tag `v0.1.0`
 
 ---
 
