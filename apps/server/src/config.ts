@@ -6,6 +6,8 @@ export interface ServerConfig {
   host: string;
   port: number;
   dataDir: string;
+  /** Sign-in attempts per address per minute. Tests raise it: they sign in many people from one address. */
+  authRateMax: number;
 }
 
 /** Reads dev/runtime settings from the environment (see `.env.example`). */
@@ -14,7 +16,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     throw new Error(`WB_PORT must be a port number, got "${env.WB_PORT}"`);
   }
+  const authRateMax = Number(env.WB_AUTH_RATE_MAX ?? 10);
+  if (!Number.isInteger(authRateMax) || authRateMax < 1) {
+    throw new Error(
+      `WB_AUTH_RATE_MAX must be a whole number above 0, got "${env.WB_AUTH_RATE_MAX}"`,
+    );
+  }
   return {
+    authRateMax,
     // Listen on the LAN so other office PCs can reach the Host.
     host: env.WB_HOST ?? '0.0.0.0',
     port,

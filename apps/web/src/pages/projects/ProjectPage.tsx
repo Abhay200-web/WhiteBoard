@@ -86,9 +86,14 @@ export function ProjectPage() {
   return (
     <div className="flex max-w-3xl flex-col gap-6">
       <div>
-        <Link to="/projects" className="text-sm text-accent underline">
-          Back to projects
-        </Link>
+        <div className="flex gap-4 text-sm">
+          <Link to="/projects" className="text-accent underline">
+            Back to projects
+          </Link>
+          <Link to={`/projects/${p.id}/canvas`} className="text-accent underline">
+            Open board
+          </Link>
+        </div>
         <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-xl font-semibold">{p.name}</h1>

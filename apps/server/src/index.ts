@@ -32,7 +32,13 @@ migrateDatabase(db);
 
 // One hub for the routes and the scheduled jobs, so both can reach the people who are connected.
 const hub = new EventHub();
-const app = buildApp({ db, dataDir: config.dataDir, logger: true, hub });
+const app = buildApp({
+  db,
+  dataDir: config.dataDir,
+  logger: true,
+  hub,
+  authRateLimit: { max: config.authRateMax, timeWindow: '1 minute' },
+});
 
 await app.listen({ host: config.host, port: config.port });
 
