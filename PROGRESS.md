@@ -13,6 +13,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ## Resume here
 
+**Decision (2026-11-27, owner):** the three-PC run of section 13 (Step 5.10, manual part), the `v0.1.0` tag and the real-Host install wait until the project's code is complete. Until then no PC test is needed. **Next code step: Phase B, step B1 (canvas engine in `packages/canvas`)**, then B2-B5 in order, then Phases C and D, as in `docs/MASTER_PLAN.md`. Each step still gets its own branch from `develop`, its checks, and an entry here. Automated E2E (`apps/web/e2e/smoke6-acceptance.spec.ts`) stays green at every step.
+
 **State (2026-11-13, end of day):** Phase A Parts 1, 2 and 3 are **done and merged into `develop`** (PRs #6-#11). Nothing is half-finished. **Tomorrow: start Part 4** - first 4.0 (project edit dialog) and 4.1 (Tasks API). Create the branch from `develop` (for example `feat/phase-a-tasks`). The step-by-step plan, with files, endpoints, tables and tests for every remaining step, is in **`docs/MASTER_PLAN.md`** (section 4).
 
 **Order of what is left:** Part 4 (tasks, kanban, comments, notifications, offboarding wire-up) -> Step T (Tauri shell + installer sidecar spike) -> Part 5 (deliverables, reviews, compare, pins, deadlines, desktop notifications, release, acceptance `v0.1.0`) -> Phase B (boards) -> Phase C -> Phase D.
@@ -185,7 +187,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
   - [x] Tests: `version.test.ts` (3), `UpdateBanner.test.tsx` (1), `desktopNotifications.test.tsx` (3), `ConnectionBanner.test.tsx` (+1); web 117 tests, E2E 9/9, `cargo check` of the shell passes
   - Not clicked through by hand: the Windows toast itself (needs a Host and two users on the desktop app)
   - Left out, for later: a single source for the release number (the server reads `apps/server/package.json`, the web reads `apps/web/package.json`; keep them equal)
-- [ ] 5.7 Auto-start, minimize-to-tray
+- [x] 5.7 Auto-start, minimize-to-tray — 2026-11-26, branch `feat/step-5-7-autostart` (commit cc98787), merged to `develop` via PR #52
 - [x] 5.8 Release workflow (`.msi` on tag) — 2026-11-26, branch `feat/step-5-8-release` (from develop, commit 19074bc)
   - [x] `.github/workflows/release.yml`: on a `v*` tag, checks that the tag matches `tauri.conf.json`'s version, runs format, lint, typecheck and tests, builds the `.msi` on `windows-latest`, and publishes a GitHub release with the `.msi` and a SHA-256 checksum file
   - [x] Installer build verified locally (`pnpm --filter @whiteboard/desktop installer`, `Whiteboard_0.1.0_x64_en-US.msi`); checksum line checked
@@ -198,10 +200,42 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
   - Not measured: server memory under load, more than 20 clients, a second PC, the real session check (the spike used a fixed token)
   - Spike code is in the scratchpad only, not kept in the repo (say if you want it committed under `docs/` or `apps/`)
 - [ ] 5.10 **§13 end-to-end scenario green** (Playwright in CI + 3 office PCs) → tag `v0.1.0`
-  - [x] Playwright spec `apps/web/e2e/smoke6-acceptance.spec.ts` covers §13 steps 1-10, 12, 13 (2026-11-27, branch `feat/step-5-8-release`, uncommitted); full E2E 10/10 passes locally
+  - [x] Playwright spec `apps/web/e2e/smoke6-acceptance.spec.ts` covers §13 steps 1-10, 12, 13 (2026-11-27, merged to `develop` via PR #55); full E2E 10/10 passes locally
   - [ ] Not automated, by design: step 5 Windows toast, step 11 time-shifted reminders (server job tests cover them), step 13 restore onto a spare PC, step 14 Host restart
   - [ ] Note: §13 step 10 says the task ends in "Done"; the app moves it to "Approved" on approve (the spec asserts Approved)
-  - [ ] Run by hand on 3 PCs (1 Host + 2 clients), then tag `v0.1.0`
+  - [ ] Run by hand on 3 PCs (1 Host + 2 clients), then tag `v0.1.0` — **deferred until the project's code is complete** (owner decision, 2026-11-27)
+
+---
+
+## Phase B — Visual boards
+
+- [~] B1 Canvas engine (pan, zoom, fit, select, multi-select, drag, resize, snap grid, 60 fps with 500 cards) in `packages/canvas` — 2026-11-27, branch `feat/phase-b1-canvas` (commit c9b1ea6, from `develop`, not merged yet)
+  - [x] Viewport: screen ↔ board conversion, pan, zoom around the pointer (clamped), fit, visible area (`viewport.ts`)
+  - [x] Items: hit test (top-most first), items in an area, selection modes replace / add / toggle (`items.ts`, `selection.ts`)
+  - [x] Edit: move (from start positions, snapped), resize from any corner with a minimum size, snap to grid (`edit.ts`)
+  - [x] Tests: 19 unit tests; 500-card frame check at 0.018 ms per frame (culling and hit test only)
+  - [ ] Drawing and pointer handling in the browser (a board view in `apps/web`). Comes with B2 so the view has real boards to show
+- [~] B2 Boards API (boards, board items, nesting, trash and restore) — 2026-11-27, branch `feat/phase-b2-boards` (from `develop`)
+  - [x] Tables `boards` (one root per project, partial unique index) and `board_items` (a board placed on a board = nesting; cards come in B4), migration `0012_boards` with back-fill of a root board for every existing project (checked on a database that had a project)
+  - [x] Shared schemas in `packages/core/src/boards.ts`
+  - [x] Routes (`apps/server/src/routes/boards.ts`): root board on first visit, board with breadcrumbs and items, create child board, rename, trash, restore, trash list
+  - [x] Rules: the main board can't be trashed; trash and restore need a project manager (403 otherwise); anything in another project, or inside a trashed board, is 404
+  - [x] `/boards` added to the dev proxy list (`apps/web/vite.config.ts`)
+  - [x] Tests: 9 route tests; server 151, core 6, db, E2E 10/10 all pass
+- [~] B3 Realtime (Hocuspocus inside the Host) — 2026-11-27, branch `feat/phase-b3-realtime` (stacked on `feat/phase-b2-boards`: merge B2 first)
+  - [x] One port: a single upgrade router sends `/collab` (boards) and `/events` (notifications) to their handlers; `@fastify/websocket` removed; `/events` tested on the new path (`realtime/router.ts`, `routes/events.ts`)
+  - [x] Live documents: one Yjs document per board, stored as incremental updates in `board_updates` (migration `0013`), replayed on load; compacted into one row after 200 updates (`realtime/collab.ts`)
+  - [x] Sign-in and access: a connection needs a valid session and access to the board's project; a removed member's open editor is refused at their next change
+  - [x] Layout projector: on each store, child-board positions from the document are written to `board_items`; the document is topped up with boards created over REST
+  - [x] Tests: 7 realtime tests (two editors sync, wrong token, outsider refused, layout stored, survives restart, compaction, removed member refused); server 158 tests; desktop sidecar builds and its smoke test passes; E2E 10/10
+  - [ ] Search rows for the projector: not written yet, because cards (B4) are what there is to search; Phase C adds full-text search
+  - [ ] Client side: the web board view with live editing, presence cursors (Yjs awareness) and the offline cache (IndexedDB). Comes with B4, when the board has cards to show
+  - [ ] Not measured: memory and CPU with many boards and clients; the sidecar smoke test does not yet open `/collab`
+  - [ ] Left as is for now: `/collab` traffic is not encrypted (plain WebSocket on the LAN). Encrypted LAN traffic is listed under Phase C (Host hardening)
+- [ ] B4 Cards (note, image, file, link, column, line/arrow; undo / redo; context menus)
+- [ ] B5 Task cards (drag a task onto a board, kept in sync with the kanban)
+
+**Exit:** two people edit one board live over the LAN; a task card moved on the board updates the kanban.
 
 ---
 

@@ -1,6 +1,5 @@
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
-import websocket from '@fastify/websocket';
 import type { Db } from '@whiteboard/db';
 import Fastify, { type FastifyInstance } from 'fastify';
 
@@ -8,13 +7,16 @@ import { EventHub } from './events/hub';
 import { activityRoutes } from './routes/activity';
 import { authRoutes } from './routes/auth';
 import { backupRoutes } from './routes/backups';
-import { eventRoutes } from './routes/events';
+import { onEventsConnection } from './routes/events';
+import { createCollab, type CollabOptions } from './realtime/collab';
+import { routeUpgrades } from './realtime/router';
 import { fileRoutes } from './routes/files';
 import { hostRoutes } from './routes/host';
 import { hostSettingsRoutes } from './routes/host-settings';
 import { inviteRoutes } from './routes/invites';
 import { memberRoutes } from './routes/members';
 import { notificationRoutes } from './routes/notifications';
+import { boardRoutes } from './routes/boards';
 import { projectRoutes } from './routes/projects';
 import { setupRoutes, type RateLimitOptions } from './routes/setup';
 import { deliverableRoutes } from './routes/deliverables';
@@ -33,6 +35,8 @@ export interface AppOptions {
    * something outside the routes (the scheduled jobs) must reach the same people.
    */
   hub?: EventHub;
+  /** Live board editing settings (tests shorten the storing delay). */
+  collab?: CollabOptions;
 }
 
 export function buildApp({
@@ -41,6 +45,7 @@ export function buildApp({
   logger = false,
   authRateLimit = { max: 10, timeWindow: '1 minute' },
   hub = new EventHub(),
+  collab: collabOptions,
 }: AppOptions): FastifyInstance {
   const app = Fastify({
     logger: logger && {
@@ -71,14 +76,25 @@ export function buildApp({
   app.register(memberRoutes, { db, hub });
   app.register(fileRoutes, { db, dataDir });
   app.register(backupRoutes, { db, dataDir });
-  app.register(websocket);
-  app.register(eventRoutes, { db, hub });
   app.register(notificationRoutes, { db });
   app.register(projectRoutes, { db, hub });
+  app.register(boardRoutes, { db });
+
   app.register(taskRoutes, { db, hub });
   app.register(deliverableRoutes, { db, hub });
   app.register(pinRoutes, { db });
   app.register(activityRoutes, { db, hub });
   app.register(hostSettingsRoutes, { db, dataDir });
+
+  // Live connections share the one port: /collab (boards) and /events (notifications).
+  const collab = createCollab(db, collabOptions);
+  const closeEvents = routeUpgrades(app.server, {
+    collab: collab.handleUpgrade,
+    events: (socket) => onEventsConnection(socket, db, hub),
+  });
+  app.addHook('onClose', async () => {
+    closeEvents();
+    await collab.server.destroy();
+  });
   return app;
 }

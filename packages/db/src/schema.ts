@@ -13,6 +13,7 @@ import {
   WORKSPACE_ROLES,
 } from '@whiteboard/core';
 import {
+  blob,
   index,
   integer,
   primaryKey,
@@ -21,6 +22,7 @@ import {
   text,
   uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
+import { sql } from 'drizzle-orm';
 
 export const users = sqliteTable('users', {
   id: text('id').primaryKey(),
@@ -475,3 +477,72 @@ export const jobs = sqliteTable('jobs', {
   lastStatus: text('last_status', { enum: ['ok', 'error'] as const }),
   lastError: text('last_error'),
 });
+
+/** A board: one root board per project, and boards nested inside others (Phase B). */
+export const boards = sqliteTable(
+  'boards',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    isRoot: integer('is_root', { mode: 'boolean' }).notNull().default(false),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => users.id),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+    trashedAt: integer('trashed_at', { mode: 'timestamp_ms' }),
+  },
+  (t) => [
+    index('boards_project_idx').on(t.projectId),
+    // At most one root board per project.
+    uniqueIndex('boards_one_root_idx')
+      .on(t.projectId)
+      .where(sql`is_root = 1`),
+  ],
+);
+
+/**
+ * Things placed on a board. Kind `board` puts a child board on its parent, which is how boards
+ * nest (a child board has exactly one row here). Cards (notes, files, ...) are added in Step B4.
+ */
+export const boardItems = sqliteTable(
+  'board_items',
+  {
+    id: text('id').primaryKey(),
+    boardId: text('board_id')
+      .notNull()
+      .references(() => boards.id, { onDelete: 'cascade' }),
+    kind: text('kind', { enum: ['board'] as const }).notNull(),
+    childBoardId: text('child_board_id')
+      .notNull()
+      .references(() => boards.id, { onDelete: 'cascade' }),
+    x: real('x').notNull(),
+    y: real('y').notNull(),
+    width: real('width').notNull(),
+    height: real('height').notNull(),
+  },
+  (t) => [
+    index('board_items_board_idx').on(t.boardId),
+    uniqueIndex('board_items_child_idx').on(t.childBoardId),
+  ],
+);
+
+/**
+ * Live-edit history of a board (Yjs updates, applied in order when the board loads). When there
+ * are many, they are compacted into one row (see `realtime/collab.ts`).
+ */
+export const boardUpdates = sqliteTable(
+  'board_updates',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    boardId: text('board_id')
+      .notNull()
+      .references(() => boards.id, { onDelete: 'cascade' }),
+    data: blob('data', { mode: 'buffer' }).notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [index('board_updates_board_idx').on(t.boardId)],
+);
