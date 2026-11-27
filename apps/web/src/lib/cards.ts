@@ -55,3 +55,18 @@ export function readPlacement(doc: Y.Doc, placementId: string): ItemGeometry | n
 export function writePlacement(doc: Y.Doc, placementId: string, geometry: ItemGeometry): void {
   doc.transact(() => placementsOf(doc).set(placementId, geometry));
 }
+
+/**
+ * Undo and redo for this person's own changes to the board: cards and child-board placements.
+ * Changes from other people are not undone, and each burst of typing is one step.
+ */
+export function createUndoManager(doc: Y.Doc): Y.UndoManager {
+  return new Y.UndoManager([cardsOf(doc), placementsOf(doc)], { captureTimeout: 500 });
+}
+
+/** The field a card's text box edits: a note's text or a column's title. */
+export function editField(card: Card, value: string): Partial<Card> | null {
+  if (card.kind === 'note') return { text: value };
+  if (card.kind === 'column') return { title: value };
+  return null;
+}
