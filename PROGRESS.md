@@ -294,8 +294,9 @@ Steps are proposed here (the master plan lists the items without a breakdown); e
   - [x] `GET /projects/:id/export?format=docx`: Word document with the same content (`projects/exportWord.ts`, `docx` package)
   - [x] `GET /projects/:id/export?format=zip`: `project.md` plus every project file in `files/` and every task file in `tasks/<task>/`; duplicate names get a number (`projects/exportFiles.ts`, `fflate` package)
   - [x] Dashboard buttons "Export Markdown", "Export PDF" (`downloadFile` in `lib/api.ts` sends the token and saves the file)
-  - [x] Tests: 1 server route test (formats, outsiders and signed-out refused), 2 server builder tests (multi-page PDF, Markdown content); 1 web test for the download; E2E `smoke13-export` (all four formats); server 184, web 132, E2E 17/17
-  - [ ] Not done: PNG of the board (needs the board rendered from its Yjs data); project brief text (rich text) is not in the export yet; the Word and PDF files have no board or images
+  - [x] Tests: 1 server route test (formats, outsiders and signed-out refused), 2 server builder tests (multi-page PDF, Markdown content); 1 web test for the download; E2E `smoke13-export` (all four formats); the brief test covers TipTap reading and the Markdown and PDF sections; server 186, web 132, E2E 17/17
+  - [x] Project brief (TipTap text) in every format: a "Brief" section with one line per paragraph or list item (`briefLines` in `projects/export.ts`)
+  - [ ] Not done: PNG of the board (needs the board rendered from its Yjs data); the Word and PDF files have no board or images
 - [ ] C6 Full settings, board templates, more card types (table, document, heading, colour, comment), custom task statuses, per-user notification settings and a daily summary, incremental backups, project cover images
 
 ---

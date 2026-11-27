@@ -26,7 +26,34 @@ export interface ProjectExport {
   deadline: number | null;
   generatedAt: number;
   progress: ProjectReport['progress'];
+  /** The brief as plain lines, one per paragraph or list item. Empty when there is no brief. */
+  brief: string[];
   groups: ExportGroup[];
+}
+
+interface TipTapNode {
+  type?: string;
+  text?: string;
+  content?: TipTapNode[];
+}
+
+function nodeText(node: TipTapNode): string {
+  if (node.type === 'text') return node.text ?? '';
+  return (node.content ?? []).map(nodeText).join('');
+}
+
+/** Turns TipTap JSON into plain lines. List items start with "- "; other content is read in order. */
+export function briefLines(node: TipTapNode | null | undefined): string[] {
+  if (!node) return [];
+  if (node.type === 'paragraph' || node.type === 'heading') {
+    const text = nodeText(node).trim();
+    return text ? [text] : [];
+  }
+  if (node.type === 'listItem') {
+    const [first, ...rest] = (node.content ?? []).flatMap(briefLines);
+    return first === undefined ? [] : [`- ${first}`, ...rest];
+  }
+  return (node.content ?? []).flatMap(briefLines);
 }
 
 /** Reads a project for export. Returns null when the project does not exist. */
@@ -41,6 +68,7 @@ export function loadProjectExport(
       clientName: projects.clientName,
       status: projects.status,
       deadline: projects.deadline,
+      brief: projects.brief,
     })
     .from(projects)
     .where(eq(projects.id, projectId))
@@ -85,6 +113,7 @@ export function loadProjectExport(
     deadline: project.deadline ? project.deadline.getTime() : null,
     generatedAt: now,
     progress: projectReport(db, projectId, now).progress,
+    brief: briefLines(project.brief as TipTapNode | null),
     groups: statuses.map((s) => ({
       name: s.name,
       kind: s.kind,
@@ -131,6 +160,7 @@ export function buildMarkdown(data: ProjectExport): string {
     `- Overdue: ${progress.overdue}`,
     `- Due in the next 7 days: ${progress.dueSoon}`,
   ];
+  if (data.brief.length > 0) lines.push('', '## Brief', '', ...data.brief.flatMap((b) => [b, '']));
   for (const group of data.groups) {
     lines.push('', `## ${group.name}`, '');
     if (group.tasks.length === 0) lines.push('_No tasks._');
@@ -164,6 +194,10 @@ function pdfLines(data: ProjectExport): PdfLine[] {
     { text: `Overdue: ${progress.overdue}`, indent: 10 },
     { text: `Due in the next 7 days: ${progress.dueSoon}`, indent: 10 },
   ];
+  if (data.brief.length > 0) {
+    lines.push({ text: 'Brief', bold: true, size: 13, gapBefore: 14 });
+    for (const b of data.brief) lines.push({ text: b, indent: 10, gapBefore: 4 });
+  }
   for (const group of data.groups) {
     lines.push({ text: group.name, bold: true, size: 13, gapBefore: 14 });
     if (group.tasks.length === 0) lines.push({ text: 'No tasks.', indent: 10 });
