@@ -209,13 +209,20 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ## Phase B — Visual boards
 
-- [~] B1 Canvas engine (pan, zoom, fit, select, multi-select, drag, resize, snap grid, 60 fps with 500 cards) in `packages/canvas` — 2026-11-27, branch `feat/phase-b1-canvas` (from `develop`)
+- [~] B1 Canvas engine (pan, zoom, fit, select, multi-select, drag, resize, snap grid, 60 fps with 500 cards) in `packages/canvas` — 2026-11-27, branch `feat/phase-b1-canvas` (commit c9b1ea6, from `develop`, not merged yet)
   - [x] Viewport: screen ↔ board conversion, pan, zoom around the pointer (clamped), fit, visible area (`viewport.ts`)
   - [x] Items: hit test (top-most first), items in an area, selection modes replace / add / toggle (`items.ts`, `selection.ts`)
   - [x] Edit: move (from start positions, snapped), resize from any corner with a minimum size, snap to grid (`edit.ts`)
   - [x] Tests: 19 unit tests; 500-card frame check at 0.018 ms per frame (culling and hit test only)
-  - [ ] Drawing and pointer handling in the browser (a board view in `apps/web`). Not built yet; it comes with B2 so the view has real boards to show
-- [ ] B2 Boards API (boards, board items, nesting, trash and restore)
+  - [ ] Drawing and pointer handling in the browser (a board view in `apps/web`). Comes with B2 so the view has real boards to show
+- [~] B2 Boards API (boards, board items, nesting, trash and restore) — 2026-11-27, branch `feat/phase-b2-boards` (from `develop`)
+  - [x] Tables `boards` (one root per project, partial unique index) and `board_items` (a board placed on a board = nesting; cards come in B4), migration `0012_boards` with back-fill of a root board for every existing project (checked on a database that had a project)
+  - [x] Shared schemas in `packages/core/src/boards.ts`
+  - [x] Routes (`apps/server/src/routes/boards.ts`): root board on first visit, board with breadcrumbs and items, create child board, rename, trash, restore, trash list
+  - [x] Rules: the main board can't be trashed; trash and restore need a project manager (403 otherwise); anything in another project, or inside a trashed board, is 404
+  - [x] `/boards` added to the dev proxy list (`apps/web/vite.config.ts`)
+  - [x] Tests: 9 route tests; server 151, core 6, db, E2E 10/10 all pass
+  - [ ] Realtime sync of boards (B3)
 - [ ] B3 Realtime (Hocuspocus inside the Host, presence, offline cache)
 - [ ] B4 Cards (note, image, file, link, column, line/arrow; undo / redo; context menus)
 - [ ] B5 Task cards (drag a task onto a board, kept in sync with the kanban)

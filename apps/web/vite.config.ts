@@ -24,6 +24,7 @@ export default defineConfig({
         '/files',
         '/backups',
         '/projects',
+        '/boards',
         '/people',
         '/tasks',
         '/subtasks',
