@@ -13,6 +13,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ## Resume here
 
+**Decision (2026-11-27, owner):** the three-PC run of section 13 (Step 5.10, manual part), the `v0.1.0` tag and the real-Host install wait until the project's code is complete. Until then no PC test is needed. **Next code step: Phase B, step B1 (canvas engine in `packages/canvas`)**, then B2-B5 in order, then Phases C and D, as in `docs/MASTER_PLAN.md`. Each step still gets its own branch from `develop`, its checks, and an entry here. Automated E2E (`apps/web/e2e/smoke6-acceptance.spec.ts`) stays green at every step.
+
 **State (2026-11-13, end of day):** Phase A Parts 1, 2 and 3 are **done and merged into `develop`** (PRs #6-#11). Nothing is half-finished. **Tomorrow: start Part 4** - first 4.0 (project edit dialog) and 4.1 (Tasks API). Create the branch from `develop` (for example `feat/phase-a-tasks`). The step-by-step plan, with files, endpoints, tables and tests for every remaining step, is in **`docs/MASTER_PLAN.md`** (section 4).
 
 **Order of what is left:** Part 4 (tasks, kanban, comments, notifications, offboarding wire-up) -> Step T (Tauri shell + installer sidecar spike) -> Part 5 (deliverables, reviews, compare, pins, deadlines, desktop notifications, release, acceptance `v0.1.0`) -> Phase B (boards) -> Phase C -> Phase D.
@@ -185,7 +187,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
   - [x] Tests: `version.test.ts` (3), `UpdateBanner.test.tsx` (1), `desktopNotifications.test.tsx` (3), `ConnectionBanner.test.tsx` (+1); web 117 tests, E2E 9/9, `cargo check` of the shell passes
   - Not clicked through by hand: the Windows toast itself (needs a Host and two users on the desktop app)
   - Left out, for later: a single source for the release number (the server reads `apps/server/package.json`, the web reads `apps/web/package.json`; keep them equal)
-- [ ] 5.7 Auto-start, minimize-to-tray
+- [x] 5.7 Auto-start, minimize-to-tray — 2026-11-26, branch `feat/step-5-7-autostart` (commit cc98787), merged to `develop` via PR #52
 - [x] 5.8 Release workflow (`.msi` on tag) — 2026-11-26, branch `feat/step-5-8-release` (from develop, commit 19074bc)
   - [x] `.github/workflows/release.yml`: on a `v*` tag, checks that the tag matches `tauri.conf.json`'s version, runs format, lint, typecheck and tests, builds the `.msi` on `windows-latest`, and publishes a GitHub release with the `.msi` and a SHA-256 checksum file
   - [x] Installer build verified locally (`pnpm --filter @whiteboard/desktop installer`, `Whiteboard_0.1.0_x64_en-US.msi`); checksum line checked
@@ -198,10 +200,10 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
   - Not measured: server memory under load, more than 20 clients, a second PC, the real session check (the spike used a fixed token)
   - Spike code is in the scratchpad only, not kept in the repo (say if you want it committed under `docs/` or `apps/`)
 - [ ] 5.10 **§13 end-to-end scenario green** (Playwright in CI + 3 office PCs) → tag `v0.1.0`
-  - [x] Playwright spec `apps/web/e2e/smoke6-acceptance.spec.ts` covers §13 steps 1-10, 12, 13 (2026-11-27, branch `feat/step-5-8-release`, uncommitted); full E2E 10/10 passes locally
+  - [x] Playwright spec `apps/web/e2e/smoke6-acceptance.spec.ts` covers §13 steps 1-10, 12, 13 (2026-11-27, merged to `develop` via PR #55); full E2E 10/10 passes locally
   - [ ] Not automated, by design: step 5 Windows toast, step 11 time-shifted reminders (server job tests cover them), step 13 restore onto a spare PC, step 14 Host restart
   - [ ] Note: §13 step 10 says the task ends in "Done"; the app moves it to "Approved" on approve (the spec asserts Approved)
-  - [ ] Run by hand on 3 PCs (1 Host + 2 clients), then tag `v0.1.0`
+  - [ ] Run by hand on 3 PCs (1 Host + 2 clients), then tag `v0.1.0` — **deferred until the project's code is complete** (owner decision, 2026-11-27)
 
 ---
 
