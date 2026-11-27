@@ -81,6 +81,7 @@ export function BoardPage({ boardId }: { boardId: string }) {
       <BoardCanvas
         boardId={board.id}
         projectId={board.projectId}
+        title={board.title}
         doc={live.doc}
         items={board.items}
       />
