@@ -205,6 +205,23 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ---
 
+## Phase B — Visual boards
+
+- [~] B1 Canvas engine (pan, zoom, fit, select, multi-select, drag, resize, snap grid, 60 fps with 500 cards) in `packages/canvas` — 2026-11-27, branch `feat/phase-b1-canvas` (from `develop`)
+  - [x] Viewport: screen ↔ board conversion, pan, zoom around the pointer (clamped), fit, visible area (`viewport.ts`)
+  - [x] Items: hit test (top-most first), items in an area, selection modes replace / add / toggle (`items.ts`, `selection.ts`)
+  - [x] Edit: move (from start positions, snapped), resize from any corner with a minimum size, snap to grid (`edit.ts`)
+  - [x] Tests: 19 unit tests; 500-card frame check at 0.018 ms per frame (culling and hit test only)
+  - [ ] Drawing and pointer handling in the browser (a board view in `apps/web`). Not built yet; it comes with B2 so the view has real boards to show
+- [ ] B2 Boards API (boards, board items, nesting, trash and restore)
+- [ ] B3 Realtime (Hocuspocus inside the Host, presence, offline cache)
+- [ ] B4 Cards (note, image, file, link, column, line/arrow; undo / redo; context menus)
+- [ ] B5 Task cards (drag a task onto a board, kept in sync with the kanban)
+
+**Exit:** two people edit one board live over the LAN; a task card moved on the board updates the kanban.
+
+---
+
 ## Changelog
 
 | Date       | Feature                                                                                                                                                | Ref | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
