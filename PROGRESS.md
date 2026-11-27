@@ -264,6 +264,25 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ---
 
+## Phase C — v2
+
+Steps are proposed here (the master plan lists the items without a breakdown); each one is its own branch from the previous one until merged.
+
+- [x] C1 Full search (SQLite FTS5) — 2026-11-27, branch `feat/phase-c1-search` (stacked on B5)
+  - [x] Index: one FTS5 table (`search_index`) kept current by database triggers on projects, tasks, comments and boards; existing rows back-filled (checked on a database with data for all four kinds) (`migrations/0014_search.sql`)
+  - [x] Card text on boards (notes, column titles, link titles, file names) written to the index when the board's document is stored; this closes the item deferred in B3 (`search/cardIndex.ts`)
+  - [x] `GET /search?q=`: prefix matching on every word; results only from projects the person can view (`routes/search.ts`, `visibleProjectIds`)
+  - [x] Web: Search page at `/search` with highlighted matches; each hit opens its board or project
+  - [x] Tests: 5 server search tests (projects, tasks, comments, permissions, rename and delete, board notes); 2 web tests; E2E `smoke10-search`; server 173 tests, web 124, E2E 14/14
+  - [ ] Not searched yet: task descriptions (rich text), files' contents, and the words inside images
+- [ ] C2 Calendar view and saved filters
+- [ ] C3 Dashboard and reporting (progress, overdue, workload, review turnaround)
+- [ ] C4 Host hardening: run as a Windows service, encrypted LAN traffic, in-app updates served by the Host
+- [ ] C5 Export (PDF, PNG, Word, Markdown, zip)
+- [ ] C6 Full settings, board templates, more card types (table, document, heading, colour, comment), custom task statuses, per-user notification settings and a daily summary, incremental backups, project cover images
+
+---
+
 ## Changelog
 
 | Date       | Feature                                                                                                                                                | Ref | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |

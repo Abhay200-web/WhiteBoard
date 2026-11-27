@@ -14,4 +14,5 @@ export * from './members';
 export * from './notifications';
 export * from './projects';
 export * from './roles';
+export * from './search';
 export * from './tasks';

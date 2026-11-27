@@ -26,6 +26,7 @@ export default defineConfig({
         '/projects',
         '/boards',
         '/collab',
+        '/search',
         '/people',
         '/tasks',
         '/subtasks',
