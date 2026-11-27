@@ -80,6 +80,7 @@ function mockProject(
       return HttpResponse.json(tasks.at(-1), { status: 201 });
     }),
     http.get('*/projects/p1/files', () => HttpResponse.json([])),
+    http.get('*/projects/p1/saved-filters', () => HttpResponse.json([])),
     http.get('*/projects/p1', () =>
       HttpResponse.json({
         id: 'p1',
@@ -193,6 +194,68 @@ describe('task list', () => {
     // The new task opens straight away, without a reload.
     await user.click(within(todo).getByRole('button', { name: 'Logo concepts' }));
     expect(within(await drawer()).getByLabelText('Title')).toHaveValue('Logo concepts');
+  });
+});
+
+describe('task filters, saved views and calendar', () => {
+  it('narrows the list by person, and saves and reapplies the view', async () => {
+    mockHost({}, MIA);
+    mockProject('manager', [
+      task({ id: 't1', title: 'Wordmark', assignees: [{ userId: 'u3', name: 'Fred' }] }),
+      task({ id: 't2', title: 'Icon' }),
+    ]);
+    let views: {
+      id: string;
+      projectId: string;
+      name: string;
+      filter: object;
+      createdAt: number;
+    }[] = [];
+    server.use(
+      http.get('*/projects/p1/saved-filters', () => HttpResponse.json(views)),
+      http.post('*/projects/p1/saved-filters', async ({ request }) => {
+        const body = (await request.json()) as { name: string; filter: object };
+        views = [...views, { id: 'v1', projectId: 'p1', createdAt: 1, ...body }];
+        return HttpResponse.json(views[0], { status: 201 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderApp('/projects/p1', 'tok');
+
+    const todo = await screen.findByRole('region', { name: 'To do' });
+    const titles = () =>
+      within(todo)
+        .getAllByRole('button')
+        .map((b) => b.textContent);
+    await user.selectOptions(screen.getByLabelText('Filter by person'), 'u3');
+    expect(titles()).toEqual(['Wordmark']);
+
+    await user.click(screen.getByRole('button', { name: 'Save view' }));
+    await user.type(screen.getByLabelText('View name'), 'Fred’s tasks');
+    await user.click(screen.getByRole('button', { name: 'Save view' }));
+    expect(await screen.findByRole('button', { name: 'Fred’s tasks' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(titles()).toEqual(['Wordmark', 'Icon']);
+    await user.click(screen.getByRole('button', { name: 'Fred’s tasks' }));
+    expect(titles()).toEqual(['Wordmark']);
+  });
+
+  it('shows tasks on their due day in the calendar, and opens one from it', async () => {
+    mockHost({}, MIA);
+    const due = new Date();
+    due.setHours(12, 0, 0, 0);
+    mockProject('manager', [
+      task({ id: 't1', title: 'Final delivery', dueAt: due.getTime() }),
+      task({ id: 't2', title: 'Undated' }),
+    ]);
+    const user = userEvent.setup();
+    renderApp('/projects/p1', 'tok');
+
+    await user.click(await screen.findByRole('button', { name: 'Calendar' }));
+    expect(await screen.findByText(/1 without a due date is not shown/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Final delivery' }));
+    expect(within(await drawer()).getByLabelText('Title')).toHaveValue('Final delivery');
   });
 });
 
