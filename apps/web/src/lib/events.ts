@@ -19,6 +19,7 @@ export type LiveStatus = 'connecting' | 'online' | 'reconnecting';
 function reloadTask(queryClient: QueryClient, projectId: string, taskId: string) {
   for (const queryKey of [
     ['tasks', projectId],
+    ['report', projectId], // the project dashboard
     ['task', taskId], // a task card on a board
     ['subtasks', taskId],
     ['comments', taskId],

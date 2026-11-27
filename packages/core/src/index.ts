@@ -13,6 +13,7 @@ export * from './host';
 export * from './members';
 export * from './notifications';
 export * from './projects';
+export * from './report';
 export * from './roles';
 export * from './savedFilters';
 export * from './search';
