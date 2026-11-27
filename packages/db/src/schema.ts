@@ -154,6 +154,8 @@ export const projects = sqliteTable(
     /** Whole currency units; optional. */
     budget: integer('budget'),
     color: text('color'),
+    /** A picture shown on the project card and page; its project's members may read it. */
+    coverFileId: text('cover_file_id').references(() => files.id),
     createdBy: text('created_by')
       .notNull()
       .references(() => users.id),

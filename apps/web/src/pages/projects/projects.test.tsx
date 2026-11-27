@@ -33,6 +33,7 @@ const summary = (over: Record<string, unknown> = {}) => ({
   deadline: DEADLINE,
   budget: null,
   color: null,
+  coverFileId: null,
   createdBy: 'u2',
   createdAt: 1,
   memberCount: 1,
@@ -442,5 +443,112 @@ describe('project overview', () => {
     );
     renderApp('/projects/nope', 'tok');
     expect(await screen.findByRole('heading', { name: 'Project not found' })).toBeInTheDocument();
+  });
+});
+
+describe('project covers', () => {
+  const fileInfo = (id: string, hasThumbnail: boolean) => ({
+    id,
+    name: `${id}.png`,
+    mimeType: hasThumbnail ? 'image/png' : 'application/pdf',
+    size: 2048,
+    sha256: 'a'.repeat(64),
+    hasThumbnail,
+    uploadedBy: 'u2',
+    createdAt: 1,
+  });
+
+  it('creates a project with a cover picture and a colour, refusing a file that is no picture', async () => {
+    mockHost({}, MEMBER);
+    let created: Record<string, unknown> | null = null;
+    const uploads = [fileInfo('doc', false), fileInfo('cover', true)];
+    server.use(
+      http.get('*/files/cover/thumbnail', () => new HttpResponse(new Blob(['x']))),
+      http.post('*/files', () => HttpResponse.json(uploads.shift(), { status: 201 })),
+      http.post('*/projects', async ({ request }) => {
+        created = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(detail(), { status: 201 });
+      }),
+      http.get('*/projects/p1', () => HttpResponse.json(detail())),
+      http.get('*/projects/p1/files', () => HttpResponse.json([])),
+      http.get('*/people', () => HttpResponse.json([])),
+      http.get('*/projects', () => HttpResponse.json([])),
+    );
+    const user = userEvent.setup();
+    const { router } = renderApp('/projects/new', 'tok');
+
+    await user.type(await screen.findByLabelText('Project name'), 'Covered');
+    const pick = screen.getByLabelText(/Choose a file/);
+    await user.upload(pick, new File(['x'], 'doc.png', { type: 'image/png' }));
+    expect(await screen.findByText(/Use a PNG, JPEG/)).toBeInTheDocument();
+    await user.upload(pick, new File(['x'], 'cover.png', { type: 'image/png' }));
+    expect(await screen.findByRole('img', { name: 'Cover picture' })).toBeInTheDocument();
+    expect(screen.queryByText(/Use a PNG, JPEG/)).not.toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'None' })).toBeChecked();
+    await user.click(screen.getByRole('radio', { name: 'Teal' }));
+
+    await user.click(screen.getByRole('button', { name: 'Create project' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/projects/p1'));
+    expect(created).toMatchObject({ name: 'Covered', coverFileId: 'cover', color: '#1f9fa6' });
+  });
+
+  it('shows the cover on the project card', async () => {
+    mockHost({}, MEMBER);
+    server.use(
+      http.get('*/files/f9/thumbnail', () => new HttpResponse(new Blob(['x']))),
+      http.get('*/projects', () =>
+        HttpResponse.json([
+          summary({ coverFileId: 'f9' }),
+          summary({ id: 'p2', name: 'Plain', color: '#d64545' }),
+        ]),
+      ),
+    );
+    renderApp('/projects', 'tok');
+    expect(await screen.findByRole('img', { name: 'Logo for Client X cover' })).toHaveAttribute(
+      'src',
+      'blob:test',
+    );
+    expect(screen.queryByRole('img', { name: 'Plain cover' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the colour and removes the cover from the edit dialog', async () => {
+    mockHost({}, MEMBER);
+    let current = detail({ coverFileId: 'f9', color: '#8b5cc7' });
+    let sent: Record<string, unknown> | null = null;
+    server.use(
+      http.get('*/files/f9/thumbnail', () => new HttpResponse(new Blob(['x']))),
+      http.post('*/files/f9/link', () =>
+        HttpResponse.json({ url: '/files/f9/content?link=abc', expiresAt: Date.now() + 60_000 }),
+      ),
+      http.get('*/projects/p1', () => HttpResponse.json(current)),
+      http.get('*/projects/p1/files', () => HttpResponse.json([])),
+      http.get('*/people', () => HttpResponse.json([])),
+      http.get('*/projects', () => HttpResponse.json([])),
+      http.patch('*/projects/p1', async ({ request }) => {
+        sent = (await request.json()) as Record<string, unknown>;
+        current = detail({ coverFileId: null, color: '#8b5cc7' });
+        return HttpResponse.json(current);
+      }),
+    );
+    const user = userEvent.setup();
+    renderApp('/projects/p1', 'tok');
+    expect(await screen.findByRole('img', { name: 'Logo for Client X cover' })).toHaveAttribute(
+      'src',
+      expect.stringContaining('/files/f9/content?link=abc'),
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Edit project' }));
+    const dialog = screen.getByRole('dialog', { name: 'Edit project' });
+    expect(within(dialog).getByRole('radio', { name: 'Purple' })).toBeChecked();
+    await user.click(within(dialog).getByRole('button', { name: 'Remove cover' }));
+    expect(within(dialog).queryByRole('img', { name: 'Cover picture' })).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => expect(sent).toMatchObject({ coverFileId: null, color: '#8b5cc7' }));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('img', { name: 'Logo for Client X cover' }),
+      ).not.toBeInTheDocument(),
+    );
   });
 });
