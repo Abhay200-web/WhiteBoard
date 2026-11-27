@@ -4,6 +4,8 @@ import {
   BOARD_ITEM_SIZE,
   boardDetailSchema,
   boardListSchema,
+  linkPreviewRequestSchema,
+  linkPreviewSchema,
   boardSchema,
   createBoardRequestSchema,
   updateBoardRequestSchema,
@@ -14,6 +16,7 @@ import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 
 import { findViewableBoard, type BoardRow } from '../boards/tree';
+import { LinkPreviewError, previewLink } from '../boards/linkPreview';
 import { authenticate, badRequest, requireRole, sendError, ALL_ROLES } from '../plugins/auth';
 import { canManageProject, canViewProject } from '../projects/access';
 
@@ -178,6 +181,21 @@ export const boardRoutes: FastifyPluginAsync<{ db: Db }> = async (app, { db }) =
       .where(eq(boards.id, loaded.row.id))
       .run();
     return summary(db.select().from(boards).where(eq(boards.id, loaded.row.id)).get()!);
+  });
+
+  // A link card's title and description. The Host fetches the page, never the browser.
+  app.post('/boards/:id/link-preview', { preHandler: signedIn }, async (request, reply) => {
+    const parsed = linkPreviewRequestSchema.safeParse(request.body);
+    if (!parsed.success) return badRequest(reply, parsed.error.issues[0]?.message);
+    if (!loadBoard(request, reply)) return;
+    try {
+      return linkPreviewSchema.parse(await previewLink(parsed.data.url));
+    } catch (err) {
+      if (err instanceof LinkPreviewError) {
+        return sendError(reply, 422, 'link_preview_failed', err.message);
+      }
+      throw err;
+    }
   });
 
   app.post('/boards/:id/trash', { preHandler: signedIn }, async (request, reply) => {
