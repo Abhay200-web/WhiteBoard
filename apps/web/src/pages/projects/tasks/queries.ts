@@ -68,3 +68,10 @@ export function useUpdateTask(projectId: string) {
     },
   });
 }
+
+/** One task, for a task card on a board. Refreshed by the live events (see lib/events.ts). */
+export const useTask = (taskId: string) =>
+  useQuery({
+    queryKey: ['task', taskId],
+    queryFn: () => api(`/tasks/${taskId}`, { schema: taskSchema }),
+  });

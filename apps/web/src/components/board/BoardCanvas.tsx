@@ -26,8 +26,13 @@ import {
 import { useNavigate } from 'react-router';
 import type * as Y from 'yjs';
 
-import { api } from '../../lib/api';
+import { api, errorText } from '../../lib/api';
+import { useStatuses } from '../../pages/projects/tasks/queries';
+import { taskSchema, type Task } from '@whiteboard/core';
 import {
+  columnAt,
+  createUndoManager,
+  editField,
   patchCard,
   readCards,
   readPlacement,
@@ -37,6 +42,7 @@ import {
 } from '../../lib/cards';
 import { CardBody } from './CardBody';
 import { FilePickDialog, LinkDialog } from './AddDialogs';
+import { TaskPickDialog } from './TaskPickDialog';
 
 /** Positions snap to this grid, in board units. */
 const GRID = 8;
@@ -46,7 +52,13 @@ const SIZE = {
   image: { width: 240, height: 180 },
   file: { width: 240, height: 88 },
   link: { width: 260, height: 120 },
+  column: { width: 260, height: 320 },
+  line: { width: 160, height: 80 },
+  task: { width: 220, height: 110 },
 } as const;
+
+/** How far a duplicate is offset from its original, in board units. */
+const DUPLICATE_OFFSET = 24;
 
 /** Changes whenever the live document changes, so the screen can read it again. */
 function useDocVersion(doc: Y.Doc): number {
@@ -84,9 +96,16 @@ type Drag =
       corner?: Corner;
     };
 
+/** The right-click menu: open at a point on the surface, for one item. */
+interface MenuState {
+  x: number;
+  y: number;
+  id: string;
+}
+
 /**
- * The board surface: cards and child boards placed on it, panned, zoomed, selected, dragged and
- * resized. Every change is written to the live document, so everyone else sees it.
+ * The board surface: cards and child boards placed on it, panned, zoomed, selected, dragged,
+ * resized, edited and undone. Every change is written to the live document, so everyone else sees it.
  */
 export function BoardCanvas({
   boardId,
@@ -104,12 +123,24 @@ export function BoardCanvas({
   const version = useDocVersion(doc);
   const surface = useRef<HTMLDivElement>(null);
   const size = useElementSize(surface);
+  // Not destroyed on unmount: development builds run effects twice, which would switch it off.
+  // It belongs to the document, so it goes when the document does.
+  const undo = useMemo(() => createUndoManager(doc), [doc]);
+  // The undo / redo buttons follow the undo history itself, not only the document's changes.
+  const [, setHistoryTick] = useState(0);
+  useEffect(() => {
+    const changed = () => setHistoryTick((t) => t + 1);
+    const events = ['stack-item-added', 'stack-item-popped', 'stack-cleared'] as const;
+    events.forEach((name) => undo.on(name, changed));
+    return () => events.forEach((name) => undo.off(name, changed));
+  }, [undo]);
 
   const [view, setView] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [editing, setEditing] = useState<string | null>(null);
   const [preview, setPreview] = useState<Map<string, CanvasItem>>(new Map());
-  const [dialog, setDialog] = useState<null | 'link' | 'image' | 'file'>(null);
+  const [dialog, setDialog] = useState<null | 'link' | 'image' | 'file' | 'task'>(null);
+  const [menu, setMenu] = useState<MenuState | null>(null);
   const drag = useRef<Drag | null>(null);
   const previewRef = useRef(preview);
   const viewRef = useRef(view);
@@ -168,21 +199,31 @@ export function BoardCanvas({
     return () => el.removeEventListener('wheel', onWheel);
   }, []);
 
-  // Delete removes the selected cards (child boards are removed from their own screen later).
+  // Keys: Delete removes the selected cards; Ctrl+Z / Ctrl+Y (or Ctrl+Shift+Z) undo and redo.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (editing || (e.target instanceof HTMLElement && /INPUT|TEXTAREA/.test(e.target.tagName))) {
         return;
       }
-      if (e.key === 'Escape') setSelected(new Set());
-      if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (e.key === 'Escape') {
+        setSelected(new Set());
+        setMenu(null);
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) undo.redo();
+        else undo.undo();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        undo.redo();
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
         for (const id of selected) if (cardsById.has(id)) removeCard(doc, id);
         setSelected(new Set());
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [doc, editing, selected, cardsById]);
+  }, [doc, undo, editing, selected, cardsById]);
 
   function pointIn(e: { clientX: number; clientY: number }) {
     const rect = surface.current!.getBoundingClientRect();
@@ -190,6 +231,7 @@ export function BoardCanvas({
   }
 
   function onPointerDown(e: ReactPointerEvent<HTMLDivElement>) {
+    setMenu(null);
     if (editing || e.button !== 0) return;
     const el = e.target as HTMLElement;
     const handle = el.closest<HTMLElement>('[data-handle]');
@@ -256,7 +298,7 @@ export function BoardCanvas({
       surface.current.releasePointerCapture(e.pointerId);
     }
     if (!d || d.mode === 'pan') return;
-    // Commit what the drag changed, then drop the preview.
+    // Commit what the drag changed, then drop the preview. The drag is one undo step.
     for (const [id, shape] of previewRef.current) {
       const geometry = { x: shape.x, y: shape.y, width: shape.width, height: shape.height };
       if (cardsById.has(id)) {
@@ -267,6 +309,17 @@ export function BoardCanvas({
           writePlacement(doc, id, { childBoardId: placement.item.childBoardId, ...geometry });
         }
       }
+    }
+    // A task card dropped on a column linked to a status moves the task to that status.
+    for (const [id, shape] of previewRef.current) {
+      const card = cardsById.get(id);
+      if (card?.kind !== 'task') continue;
+      const over = columnAt(
+        cards,
+        { x: shape.x + shape.width / 2, y: shape.y + shape.height / 2 },
+        id,
+      );
+      if (over?.statusId) dropOnStatus(card.taskId, over.statusId);
     }
     setPreviewBoth(new Map());
   }
@@ -282,6 +335,29 @@ export function BoardCanvas({
     writeCard(doc, { id, kind: 'note', ...centreFor(width, height), width, height, text: '' });
     setSelected(new Set([id]));
     setEditing(id);
+  }
+
+  function addColumn() {
+    const { width, height } = SIZE.column;
+    const id = crypto.randomUUID();
+    writeCard(doc, { id, kind: 'column', ...centreFor(width, height), width, height, title: '' });
+    setSelected(new Set([id]));
+    setEditing(id);
+  }
+
+  function addLine(arrow: boolean) {
+    const { width, height } = SIZE.line;
+    const id = crypto.randomUUID();
+    writeCard(doc, {
+      id,
+      kind: 'line',
+      ...centreFor(width, height),
+      width,
+      height,
+      reversed: false,
+      arrow,
+    });
+    setSelected(new Set([id]));
   }
 
   function addFileCard(
@@ -330,6 +406,12 @@ export function BoardCanvas({
     setDialog(null);
   }
 
+  function duplicate(card: Card) {
+    const id = crypto.randomUUID();
+    writeCard(doc, { ...card, id, x: card.x + DUPLICATE_OFFSET, y: card.y + DUPLICATE_OFFSET });
+    setSelected(new Set([id]));
+  }
+
   const newBoard = useMutation({
     mutationFn: () => {
       const { x, y } = centreFor(240, 160);
@@ -341,14 +423,61 @@ export function BoardCanvas({
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['board', boardId] }),
   });
 
+  // Moving a child board to the trash is for managers; the Host refuses others and says so.
+  const trashBoard = useMutation({
+    mutationFn: (childId: string) => api(`/boards/${childId}/trash`, { method: 'POST' }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['board', boardId] }),
+  });
+
+  const statuses = useStatuses(projectId);
+  const statusName = new Map((statuses.data ?? []).map((s) => [s.id, s.name]));
+
+  // A task dropped on a column linked to a status moves to that status (the Host checks the move).
+  const moveTask = useMutation({
+    mutationFn: ({ taskId, statusId }: { taskId: string; statusId: string }) =>
+      api(`/tasks/${taskId}`, { method: 'PATCH', body: { statusId }, schema: taskSchema }),
+    onSuccess: (task: Task) => {
+      queryClient.setQueryData(['task', task.id], task);
+      void queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
+    },
+  });
+  function dropOnStatus(taskId: string, statusId: string) {
+    const current = queryClient.getQueryData<Task>(['task', taskId]);
+    if (current?.statusId !== statusId) moveTask.mutate({ taskId, statusId });
+  }
+
+  function addTaskCard(taskId: string) {
+    const { width, height } = SIZE.task;
+    writeCard(doc, {
+      id: crypto.randomUUID(),
+      kind: 'task',
+      ...centreFor(width, height),
+      width,
+      height,
+      taskId,
+    });
+    setDialog(null);
+  }
+
   const selectedCard = selected.size === 1 ? [...selected][0]! : null;
   const selectedShape = selectedCard ? shown.find((s) => s.id === selectedCard) : undefined;
+  const menuCard = menu ? cardsById.get(menu.id) : undefined;
+  const menuPlacement = menu ? placementsById.get(menu.id) : undefined;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       <div role="toolbar" aria-label="Add to board" className="flex flex-wrap gap-2">
         <Button variant="secondary" onClick={addNote}>
           Note
+        </Button>
+        <Button variant="secondary" onClick={addColumn}>
+          Column
+        </Button>
+        <Button variant="secondary" onClick={() => addLine(false)}>
+          Line
+        </Button>
+        <Button variant="secondary" onClick={() => addLine(true)}>
+          Arrow
         </Button>
         <Button variant="secondary" onClick={() => setDialog('image')}>
           Picture
@@ -359,13 +488,32 @@ export function BoardCanvas({
         <Button variant="secondary" onClick={() => setDialog('link')}>
           Link
         </Button>
+        <Button variant="secondary" onClick={() => setDialog('task')}>
+          Task
+        </Button>
         <Button variant="secondary" loading={newBoard.isPending} onClick={() => newBoard.mutate()}>
           Board
         </Button>
+        <Button variant="ghost" disabled={undo.undoStack.length === 0} onClick={() => undo.undo()}>
+          Undo
+        </Button>
+        <Button variant="ghost" disabled={undo.redoStack.length === 0} onClick={() => undo.redo()}>
+          Redo
+        </Button>
         <span className="self-center text-xs text-muted">
-          Drag the background to move around. Scroll to zoom. Double-click a board to open it.
+          Drag the background to move around. Scroll to zoom. Right-click an item for more.
         </span>
       </div>
+      {errorText(moveTask.error) && (
+        <p role="alert" className="text-sm text-danger">
+          {errorText(moveTask.error)}
+        </p>
+      )}
+      {errorText(trashBoard.error) && (
+        <p role="alert" className="text-sm text-danger">
+          {errorText(trashBoard.error)}
+        </p>
+      )}
 
       <div
         ref={surface}
@@ -388,7 +536,13 @@ export function BoardCanvas({
               data-item={shape.id}
               onDoubleClick={() => {
                 if (placement) navigate(`/boards/${placement.item.childBoardId}`);
-                else if (card?.kind === 'note') setEditing(card.id);
+                else if (card?.kind === 'note' || card?.kind === 'column') setEditing(card.id);
+              }}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setSelected(selectIds(selected, [shape.id], 'replace'));
+                const rect = surface.current!.getBoundingClientRect();
+                setMenu({ x: e.clientX - rect.left, y: e.clientY - rect.top, id: shape.id });
               }}
               style={{
                 left: at.x,
@@ -399,14 +553,24 @@ export function BoardCanvas({
               className={cn(
                 'absolute select-none overflow-hidden rounded-lg border bg-surface shadow-sm',
                 isSelected ? 'border-accent ring-2 ring-accent' : 'border-line',
+                card?.kind === 'column' && 'bg-surface-2',
                 placement && 'bg-accent/5 font-medium',
               )}
             >
               {card && (
                 <CardBody
                   card={card}
+                  projectId={projectId}
+                  linkedStatus={
+                    card.kind === 'column' && card.statusId
+                      ? statusName.get(card.statusId)
+                      : undefined
+                  }
                   editing={editing === card.id}
-                  onText={(text) => patchCard(doc, card.id, { text } as Partial<Card>)}
+                  onText={(value) => {
+                    const patch = editField(card, value);
+                    if (patch) patchCard(doc, card.id, patch);
+                  }}
                   onDoneEditing={() => setEditing(null)}
                 />
               )}
@@ -431,8 +595,105 @@ export function BoardCanvas({
             className="absolute size-3 cursor-nwse-resize rounded-sm bg-accent"
           />
         )}
+
+        {menu && (menuCard || menuPlacement) && (
+          <ul
+            role="menu"
+            aria-label="Item actions"
+            style={{ left: menu.x, top: menu.y }}
+            className="absolute z-10 min-w-40 rounded-md border border-line bg-surface p-1 text-sm shadow-lg"
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            {menuCard && (menuCard.kind === 'note' || menuCard.kind === 'column') && (
+              <MenuItem
+                label="Rename"
+                onSelect={() => {
+                  setEditing(menuCard.id);
+                  setMenu(null);
+                }}
+              />
+            )}
+            {menuCard?.kind === 'column' &&
+              (statuses.data ?? []).map((s) => (
+                <MenuItem
+                  key={s.id}
+                  label={`Link to ${s.name}`}
+                  onSelect={() => {
+                    patchCard(doc, menuCard.id, { statusId: s.id });
+                    setMenu(null);
+                  }}
+                />
+              ))}
+            {menuCard?.kind === 'column' && menuCard.statusId && (
+              <MenuItem
+                label="Unlink status"
+                onSelect={() => {
+                  patchCard(doc, menuCard.id, { statusId: null });
+                  setMenu(null);
+                }}
+              />
+            )}
+            {menuCard && (
+              <MenuItem
+                label="Duplicate"
+                onSelect={() => {
+                  duplicate(menuCard);
+                  setMenu(null);
+                }}
+              />
+            )}
+            {menuCard && (
+              <MenuItem
+                label="Delete"
+                onSelect={() => {
+                  removeCard(doc, menuCard.id);
+                  setSelected(new Set());
+                  setMenu(null);
+                }}
+              />
+            )}
+            {menuPlacement && (
+              <MenuItem
+                label="Open board"
+                onSelect={() => navigate(`/boards/${menuPlacement.item.childBoardId}`)}
+              />
+            )}
+            {menuPlacement && (
+              <MenuItem
+                label="Move board to trash"
+                onSelect={() => {
+                  trashBoard.mutate(menuPlacement.item.childBoardId);
+                  setMenu(null);
+                }}
+              />
+            )}
+            <MenuItem
+              label="Undo"
+              disabled={undo.undoStack.length === 0}
+              onSelect={() => {
+                undo.undo();
+                setMenu(null);
+              }}
+            />
+            <MenuItem
+              label="Redo"
+              disabled={undo.redoStack.length === 0}
+              onSelect={() => {
+                undo.redo();
+                setMenu(null);
+              }}
+            />
+          </ul>
+        )}
       </div>
 
+      {dialog === 'task' && (
+        <TaskPickDialog
+          projectId={projectId}
+          onPick={addTaskCard}
+          onClose={() => setDialog(null)}
+        />
+      )}
       {dialog === 'link' && (
         <LinkDialog boardId={boardId} onPreview={addLinkCard} onClose={() => setDialog(null)} />
       )}
@@ -445,5 +706,29 @@ export function BoardCanvas({
         />
       )}
     </div>
+  );
+}
+
+function MenuItem({
+  label,
+  disabled = false,
+  onSelect,
+}: {
+  label: string;
+  disabled?: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <li role="none">
+      <button
+        type="button"
+        role="menuitem"
+        disabled={disabled}
+        onClick={onSelect}
+        className="w-full rounded px-3 py-1.5 text-left hover:bg-surface-2 disabled:opacity-40"
+      >
+        {label}
+      </button>
+    </li>
   );
 }

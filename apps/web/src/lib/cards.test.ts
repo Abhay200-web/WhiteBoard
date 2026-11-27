@@ -2,7 +2,7 @@ import type { Card } from '@whiteboard/core';
 import { describe, expect, it } from 'vitest';
 import * as Y from 'yjs';
 
-import { patchCard, readCards, removeCard, writeCard } from './cards';
+import { columnAt, createUndoManager, patchCard, readCards, removeCard, writeCard } from './cards';
 
 const note: Card = { id: 'n1', kind: 'note', x: 10, y: 20, width: 200, height: 120, text: 'Hi' };
 
@@ -36,5 +36,47 @@ describe('cards in the live document', () => {
     writeCard(doc, note);
     doc.getMap<Y.Map<unknown>>('cards').set('bad', new Y.Map([['kind', 'note']]));
     expect(readCards(doc).map((c) => c.id)).toEqual(['n1']);
+  });
+});
+
+describe('undo and redo', () => {
+  it('undoes and redoes a person’s own card, but not someone else’s change', () => {
+    const doc = new Y.Doc();
+    const undo = createUndoManager(doc);
+    writeCard(doc, note);
+    expect(readCards(doc)).toHaveLength(1);
+    undo.undo();
+    expect(readCards(doc)).toEqual([]);
+    undo.redo();
+    expect(readCards(doc)).toHaveLength(1);
+
+    // A change made elsewhere arrives with another origin and is not undone here.
+    const other = new Y.Doc();
+    Y.applyUpdate(other, Y.encodeStateAsUpdate(doc));
+    writeCard(other, { ...note, id: 'n2' });
+    Y.applyUpdate(doc, Y.encodeStateAsUpdate(other), 'remote');
+    undo.undo();
+    expect(readCards(doc).map((c) => c.id)).toEqual(['n2']);
+  });
+});
+
+describe('finding the column under a point', () => {
+  const column = (id: string, x: number, statusId?: string): Card => ({
+    id,
+    kind: 'column',
+    x,
+    y: 0,
+    width: 100,
+    height: 100,
+    title: id,
+    statusId,
+  });
+
+  it('returns the column the point is over, the top one if they overlap, and ignores the dragged card', () => {
+    const cards = [column('a', 0, 's1'), column('b', 50, 's2'), column('c', 400)];
+    expect(columnAt(cards, { x: 20, y: 20 })?.id).toBe('a');
+    expect(columnAt(cards, { x: 70, y: 20 })?.id).toBe('b');
+    expect(columnAt(cards, { x: 200, y: 20 })).toBeNull();
+    expect(columnAt(cards, { x: 20, y: 20 }, 'a')).toBeNull();
   });
 });

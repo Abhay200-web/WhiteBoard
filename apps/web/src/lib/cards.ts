@@ -55,3 +55,40 @@ export function readPlacement(doc: Y.Doc, placementId: string): ItemGeometry | n
 export function writePlacement(doc: Y.Doc, placementId: string, geometry: ItemGeometry): void {
   doc.transact(() => placementsOf(doc).set(placementId, geometry));
 }
+
+/**
+ * Undo and redo for this person's own changes to the board: cards and child-board placements.
+ * Changes from other people are not undone, and each burst of typing is one step.
+ */
+export function createUndoManager(doc: Y.Doc): Y.UndoManager {
+  return new Y.UndoManager([cardsOf(doc), placementsOf(doc)], { captureTimeout: 500 });
+}
+
+/** The field a card's text box edits: a note's text or a column's title. */
+export function editField(card: Card, value: string): Partial<Card> | null {
+  if (card.kind === 'note') return { text: value };
+  if (card.kind === 'column') return { title: value };
+  return null;
+}
+
+/**
+ * The column a point (for example, the middle of a dropped card) is over, if any. The column
+ * drawn on top wins. `exclude` is the card being dropped, so it never counts as its own column.
+ */
+export function columnAt(
+  cards: readonly Card[],
+  point: { x: number; y: number },
+  exclude?: string,
+): Extract<Card, { kind: 'column' }> | null {
+  let found: Extract<Card, { kind: 'column' }> | null = null;
+  for (const card of cards) {
+    if (card.kind !== 'column' || card.id === exclude) continue;
+    const inside =
+      point.x >= card.x &&
+      point.x <= card.x + card.width &&
+      point.y >= card.y &&
+      point.y <= card.y + card.height;
+    if (inside) found = card; // later cards are drawn on top
+  }
+  return found;
+}

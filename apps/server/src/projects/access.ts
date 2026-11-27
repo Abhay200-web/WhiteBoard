@@ -62,3 +62,19 @@ export function projectViewers(db: Db | DbTx, projectId: string, userIds: string
 export function canManageProject(db: Db, actor: Actor, projectId: string): boolean {
   return isAdmin(actor) || projectRole(db, projectId, actor.user.id) === 'manager';
 }
+
+/** The ids of the projects the actor may view (the same rule as `canViewProject`). */
+export function visibleProjectIds(db: Db, actor: Actor): string[] {
+  if (isAdmin(actor))
+    return db
+      .select({ id: projects.id })
+      .from(projects)
+      .all()
+      .map((r) => r.id);
+  return db
+    .select({ id: projectMembers.projectId })
+    .from(projectMembers)
+    .where(eq(projectMembers.userId, actor.user.id))
+    .all()
+    .map((r) => r.id);
+}
