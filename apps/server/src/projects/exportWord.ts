@@ -22,6 +22,10 @@ export async function buildDocx(data: ProjectExport): Promise<Buffer> {
       text: `Due in the next 7 days: ${progress.dueSoon}`,
     }),
   ];
+  if (data.brief.length > 0) {
+    children.push(new Paragraph({ text: 'Brief', heading: HeadingLevel.HEADING_2 }));
+    for (const line of data.brief) children.push(new Paragraph({ text: line }));
+  }
   for (const group of data.groups) {
     children.push(new Paragraph({ text: group.name, heading: HeadingLevel.HEADING_2 }));
     if (group.tasks.length === 0) children.push(new Paragraph({ text: 'No tasks.' }));
