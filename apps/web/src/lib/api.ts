@@ -86,3 +86,28 @@ export async function api<S extends z.ZodType = z.ZodUndefined>(
   if (res.status === 204 || !schema) return undefined as z.infer<S>;
   return schema.parse(await res.json());
 }
+
+/** Downloads a file from the Host with the signed-in token, and saves it under the name the Host sent. */
+export async function downloadFile(path: string): Promise<void> {
+  const headers: Record<string, string> = {};
+  if (token) headers.authorization = `Bearer ${token}`;
+
+  let res: Response;
+  try {
+    res = await fetch(`${getHostUrl()}${path}`, { headers });
+  } catch {
+    throw new ApiError(0, 'unreachable', 'Cannot reach the Host. Check the connection.');
+  }
+  if (!res.ok) {
+    if (res.status === 401 && token) setToken(null); // session ended
+    throw new ApiError(res.status, 'http_error', `Request failed (${res.status})`);
+  }
+
+  const name = res.headers.get('content-disposition')?.match(/filename="([^"]+)"/)?.[1] ?? 'export';
+  const url = URL.createObjectURL(await res.blob());
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+  link.click();
+  URL.revokeObjectURL(url);
+}

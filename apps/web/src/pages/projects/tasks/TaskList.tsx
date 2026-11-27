@@ -1,5 +1,11 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { TASK_PRIORITIES, taskSchema, type ProjectDetail, type Task } from '@whiteboard/core';
+import {
+  TASK_PRIORITIES,
+  taskSchema,
+  type ProjectDetail,
+  type Task,
+  type TaskFilter,
+} from '@whiteboard/core';
 import { Button, Card, Select, Spinner } from '@whiteboard/ui';
 import { useState } from 'react';
 import { useSearchParams } from 'react-router';
@@ -8,12 +14,18 @@ import { useAuth } from '../../../auth/AuthProvider';
 import { FormError } from '../../../components/AuthShell';
 import { api, errorText } from '../../../lib/api';
 import { AddTitleForm } from './AddTitleForm';
+import { applyTaskFilter } from './filters';
 import { tasksKey, useStatuses, useTasks, useUpdateTask } from './queries';
 import { TaskBoard } from './TaskBoard';
+import { TaskCalendar } from './TaskCalendar';
 import { TaskDrawer } from './TaskDrawer';
+import { TaskFilters } from './TaskFilters';
 import { TaskMeta } from './TaskMeta';
 
 type SortBy = 'board' | 'due' | 'priority';
+type View = 'list' | 'board' | 'calendar';
+
+const VIEW_LABEL: Record<View, string> = { list: 'List', board: 'Board', calendar: 'Calendar' };
 
 const SORTERS: Record<SortBy, (a: Task, b: Task) => number> = {
   board: (a, b) => a.sortKey - b.sortKey,
@@ -67,8 +79,10 @@ export function TaskList({ project, canManage }: { project: ProjectDetail; canMa
   const statuses = useStatuses(project.id);
   const tasks = useTasks(project.id);
   const update = useUpdateTask(project.id);
-  const [view, setView] = useState<'list' | 'board'>('list');
+  const [view, setView] = useState<View>('list');
   const [sortBy, setSortBy] = useState<SortBy>('board');
+  const [filter, setFilter] = useState<TaskFilter>({});
+  const shown = tasks.data && applyTaskFilter(tasks.data, filter);
   // The open task lives in the address (`?task=`), so a notification or a pasted link opens it.
   const [params, setParams] = useSearchParams();
   const openId = params.get('task');
@@ -92,19 +106,28 @@ export function TaskList({ project, canManage }: { project: ProjectDetail; canMa
               <option value="priority">Priority</option>
             </Select>
           )}
-          {(['list', 'board'] as const).map((v) => (
+          {(['list', 'board', 'calendar'] as const).map((v) => (
             <Button
               key={v}
               variant={view === v ? 'secondary' : 'ghost'}
               aria-pressed={view === v}
               onClick={() => setView(v)}
             >
-              {v === 'list' ? 'List' : 'Board'}
+              {VIEW_LABEL[v]}
             </Button>
           ))}
         </div>
       </div>
       {canManage && <NewTask projectId={project.id} />}
+      {statuses.data && (
+        <TaskFilters
+          projectId={project.id}
+          statuses={statuses.data}
+          members={project.members}
+          filter={filter}
+          onChange={setFilter}
+        />
+      )}
 
       {(tasks.isPending || statuses.isPending) && <Spinner />}
       <FormError message={tasks.isError || statuses.isError ? 'Could not load the tasks.' : null} />
@@ -112,9 +135,15 @@ export function TaskList({ project, canManage }: { project: ProjectDetail; canMa
       {tasks.data?.length === 0 && view === 'list' && (
         <p className="mt-2 text-sm text-muted">No tasks yet.</p>
       )}
-      {view === 'board' && tasks.data && statuses.data && (
+      {shown?.length === 0 && tasks.data && tasks.data.length > 0 && (
+        <p className="mt-2 text-sm text-muted">No tasks match these filters.</p>
+      )}
+      {view === 'calendar' && shown && (
+        <TaskCalendar tasks={shown} onOpen={(t) => setOpenId(t.id)} />
+      )}
+      {view === 'board' && shown && statuses.data && (
         <TaskBoard
-          tasks={tasks.data}
+          tasks={shown}
           statuses={statuses.data}
           canManage={canManage}
           userId={user?.id}
@@ -129,9 +158,9 @@ export function TaskList({ project, canManage }: { project: ProjectDetail; canMa
         />
       )}
       {view === 'list' &&
-        tasks.data &&
+        shown &&
         statuses.data?.map((status) => {
-          const column = tasks.data.filter((t) => t.statusId === status.id).sort(SORTERS[sortBy]);
+          const column = shown.filter((t) => t.statusId === status.id).sort(SORTERS[sortBy]);
           if (column.length === 0) return null;
           return (
             <section key={status.id} aria-label={status.name} className="mt-4">

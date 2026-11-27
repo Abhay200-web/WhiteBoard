@@ -546,3 +546,22 @@ export const boardUpdates = sqliteTable(
   },
   (t) => [index('board_updates_board_idx').on(t.boardId)],
 );
+
+/** A person's saved task filter on a project (their own view; nobody else sees it). */
+export const savedFilters = sqliteTable(
+  'saved_filters',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    /** JSON of the task filter (see `taskFilterSchema` in @whiteboard/core). */
+    filter: text('filter').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [index('saved_filters_user_project_idx').on(t.userId, t.projectId)],
+);

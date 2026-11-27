@@ -93,6 +93,9 @@ export function ProjectPage() {
           <Link to={`/projects/${p.id}/canvas`} className="text-accent underline">
             Open board
           </Link>
+          <Link to={`/projects/${p.id}/dashboard`} className="text-accent underline">
+            Dashboard
+          </Link>
         </div>
         <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
           <div>
