@@ -86,7 +86,7 @@ export function buildApp({
   app.register(searchRoutes, { db });
   app.register(savedFilterRoutes, { db });
   app.register(reportRoutes, { db });
-  app.register(exportRoutes, { db });
+  app.register(exportRoutes, { db, dataDir });
 
   app.register(taskRoutes, { db, hub });
   app.register(deliverableRoutes, { db, hub });

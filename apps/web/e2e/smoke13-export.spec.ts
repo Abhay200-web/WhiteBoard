@@ -5,7 +5,7 @@ import { expect, test } from '@playwright/test';
 import { signInOwner } from './helpers';
 
 // Phase C step 5, export, through the real UI: the dashboard downloads the project as Markdown
-// and as PDF. Runs after smoke12-dashboard.spec.ts.
+// as PDF, Word and a zip. Runs after smoke12-dashboard.spec.ts.
 test.describe.configure({ mode: 'serial' });
 
 test('the dashboard exports the project as Markdown and PDF', async ({ page }) => {
@@ -42,4 +42,12 @@ test('the dashboard exports the project as Markdown and PDF', async ({ page }) =
       .subarray(0, 5)
       .toString(),
   ).toBe('%PDF-');
+
+  const word = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export Word' }).click();
+  expect((await word).suggestedFilename()).toBe('Export story - export.docx');
+
+  const zip = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export zip with files' }).click();
+  expect((await zip).suggestedFilename()).toBe('Export story - export.zip');
 });
