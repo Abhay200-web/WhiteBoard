@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { projectReportSchema, type ProjectReport } from '@whiteboard/core';
-import { Card, Spinner } from '@whiteboard/ui';
+import { Button, Card, Spinner } from '@whiteboard/ui';
+import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 
-import { api } from '../../../lib/api';
+import { api, ApiError, downloadFile } from '../../../lib/api';
 import { useProject } from '../useProject';
 
 const useReport = (projectId: string) =>
@@ -11,6 +12,36 @@ const useReport = (projectId: string) =>
     queryKey: ['report', projectId],
     queryFn: () => api(`/projects/${projectId}/report`, { schema: projectReportSchema }),
   });
+
+/** Saves the project as Markdown or PDF. */
+function ExportButtons({ projectId }: { projectId: string }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const save = async (format: 'markdown' | 'pdf') => {
+    setBusy(true);
+    setError(null);
+    try {
+      await downloadFile(`/projects/${projectId}/export?format=${format}`);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Could not export the project.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Button variant="secondary" disabled={busy} onClick={() => save('markdown')}>
+        Export Markdown
+      </Button>
+      <Button variant="secondary" disabled={busy} onClick={() => save('pdf')}>
+        Export PDF
+      </Button>
+      {error && <p className="text-sm text-danger">{error}</p>}
+    </div>
+  );
+}
 
 function Tile({ label, value, note }: { label: string; value: number | string; note?: string }) {
   return (
@@ -137,6 +168,7 @@ export function ProjectDashboardPage() {
       <h1 className="text-xl font-semibold">
         Dashboard{project.data && <span className="text-muted"> · {project.data.name}</span>}
       </h1>
+      {id && <ExportButtons projectId={id} />}
 
       {report.isPending && <Spinner />}
       {report.isError && <p className="text-sm text-danger">Could not load the dashboard.</p>}
