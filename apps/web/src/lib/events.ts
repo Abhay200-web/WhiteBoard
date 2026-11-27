@@ -79,6 +79,11 @@ export function useLiveEvents(signedIn: boolean): LiveStatus {
           case 'task.changed':
             reloadTask(queryClient, event.data.projectId, event.data.taskId);
             break;
+          case 'statuses.changed':
+            for (const key of ['statuses', 'tasks', 'report']) {
+              void queryClient.invalidateQueries({ queryKey: [key, event.data.projectId] });
+            }
+            break;
         }
       };
       socket.onclose = (closed) => {

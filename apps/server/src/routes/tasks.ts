@@ -12,7 +12,6 @@ import {
   subtaskListSchema,
   taskListSchema,
   taskSchema,
-  taskStatusListSchema,
   updateSubtaskRequestSchema,
   updateTaskRequestSchema,
   type TaskEvent,
@@ -160,22 +159,7 @@ export const taskRoutes: FastifyPluginAsync<{ db: Db; hub: EventHub }> = async (
 
   // --- statuses and tasks ------------------------------------------------------------------
 
-  app.get('/projects/:id/statuses', { preHandler: signedIn }, async (request, reply) => {
-    const projectId = loadProjectId(request, reply, 'view');
-    if (!projectId) return;
-    const rows = db
-      .select({
-        id: taskStatuses.id,
-        name: taskStatuses.name,
-        kind: taskStatuses.kind,
-        sortKey: taskStatuses.sortKey,
-      })
-      .from(taskStatuses)
-      .where(eq(taskStatuses.projectId, projectId))
-      .orderBy(asc(taskStatuses.sortKey))
-      .all();
-    return taskStatusListSchema.parse(rows);
-  });
+  // The statuses themselves are read and changed in routes/statuses.ts.
 
   /** All tasks of a project, column by column, each column in its own order. */
   app.get('/projects/:id/tasks', { preHandler: signedIn }, async (request, reply) => {

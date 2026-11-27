@@ -181,6 +181,7 @@ export const deliverableRoutes: FastifyPluginAsync<{ db: Db; hub: EventHub }> = 
       .select()
       .from(taskStatuses)
       .where(and(eq(taskStatuses.projectId, task.projectId), eq(taskStatuses.kind, 'review')))
+      .orderBy(asc(taskStatuses.sortKey))
       .get()!;
     const sortKey = nextTaskKey(db, review.id);
 
@@ -276,6 +277,7 @@ export const deliverableRoutes: FastifyPluginAsync<{ db: Db; hub: EventHub }> = 
       .select()
       .from(taskStatuses)
       .where(and(eq(taskStatuses.projectId, task.projectId), eq(taskStatuses.kind, status)))
+      .orderBy(asc(taskStatuses.sortKey))
       .get()!;
     const sortKey = nextTaskKey(db, target.id);
 
