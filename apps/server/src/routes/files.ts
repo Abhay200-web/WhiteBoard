@@ -76,7 +76,7 @@ function toInfo(row: FileRow): FileInfo {
 }
 
 /** `attachment; filename="..."` safe for any name (ASCII fallback + RFC 5987 form). */
-function contentDisposition(kind: 'inline' | 'attachment', name: string): string {
+export function contentDisposition(kind: 'inline' | 'attachment', name: string): string {
   const ascii = name.replace(/[^\x20-\x7e]|["\\]/g, '_');
   return `${kind}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`;
 }
