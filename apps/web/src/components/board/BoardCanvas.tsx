@@ -27,7 +27,10 @@ import { useNavigate } from 'react-router';
 import type * as Y from 'yjs';
 
 import { api, errorText } from '../../lib/api';
-import { useStatuses } from '../../pages/projects/tasks/queries';
+import { boardPng, type PictureTask } from '../../lib/boardPicture';
+import { fetchFileBlob } from '../../lib/files';
+import { taskQuery, useStatuses } from '../../pages/projects/tasks/queries';
+import { saveBlob } from '../FilePreview';
 import { taskSchema, type Task } from '@whiteboard/core';
 import {
   columnAt,
@@ -110,11 +113,14 @@ interface MenuState {
 export function BoardCanvas({
   boardId,
   projectId,
+  title,
   doc,
   items,
 }: {
   boardId: string;
   projectId: string;
+  /** The board's name, for the downloaded picture's file name. */
+  title: string;
   doc: Y.Doc;
   items: BoardItem[];
 }) {
@@ -446,6 +452,37 @@ export function BoardCanvas({
     if (current?.statusId !== statusId) moveTask.mutate({ taskId, statusId });
   }
 
+  // The whole board as a PNG. Pictures and tasks that cannot be read are drawn as their names.
+  const picture = useMutation({
+    mutationFn: async () => {
+      const images = new Map<string, ImageBitmap>();
+      const tasks = new Map<string, PictureTask>();
+      await Promise.all([
+        ...cards.map(async (c) => {
+          if (c.kind !== 'image' || images.has(c.fileId)) return;
+          const blob = await fetchFileBlob(`/files/${c.fileId}/content`).catch(() => null);
+          const bitmap = blob && (await createImageBitmap(blob).catch(() => null));
+          if (bitmap) images.set(c.fileId, bitmap);
+        }),
+        ...cards.map(async (c) => {
+          if (c.kind !== 'task') return;
+          const task = await queryClient.fetchQuery(taskQuery(c.taskId)).catch(() => null);
+          if (task)
+            tasks.set(c.taskId, { title: task.title, status: statusName.get(task.statusId) ?? '' });
+        }),
+      ]);
+      const blob = await boardPng({
+        cards,
+        boards: placements.map((p) => ({ title: p.item.title, ...p.geometry })),
+        images,
+        tasks,
+        statusNames: statusName,
+      });
+      images.forEach((bitmap) => bitmap.close());
+      saveBlob(blob, `${title} - board.png`);
+    },
+  });
+
   function addTaskCard(taskId: string) {
     const { width, height } = SIZE.task;
     writeCard(doc, {
@@ -500,6 +537,9 @@ export function BoardCanvas({
         <Button variant="ghost" disabled={undo.redoStack.length === 0} onClick={() => undo.redo()}>
           Redo
         </Button>
+        <Button variant="ghost" loading={picture.isPending} onClick={() => picture.mutate()}>
+          Download PNG
+        </Button>
         <span className="self-center text-xs text-muted">
           Drag the background to move around. Scroll to zoom. Right-click an item for more.
         </span>
@@ -507,6 +547,11 @@ export function BoardCanvas({
       {errorText(moveTask.error) && (
         <p role="alert" className="text-sm text-danger">
           {errorText(moveTask.error)}
+        </p>
+      )}
+      {picture.error && (
+        <p role="alert" className="text-sm text-danger">
+          {picture.error.message}
         </p>
       )}
       {errorText(trashBoard.error) && (

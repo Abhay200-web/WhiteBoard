@@ -78,11 +78,13 @@ export function useUpdateTask(projectId: string) {
 }
 
 /** One task, for a task card on a board. Refreshed by the live events (see lib/events.ts). */
-export const useTask = (taskId: string) =>
-  useQuery({
-    queryKey: ['task', taskId],
-    queryFn: () => api(`/tasks/${taskId}`, { schema: taskSchema }),
-  });
+/** One task, for useQuery or queryClient.fetchQuery. */
+export const taskQuery = (taskId: string) => ({
+  queryKey: ['task', taskId],
+  queryFn: () => api(`/tasks/${taskId}`, { schema: taskSchema }),
+});
+
+export const useTask = (taskId: string) => useQuery(taskQuery(taskId));
 
 /** The current person's saved task views on a project. */
 export const savedFiltersKey = (projectId: string) => ['saved-filters', projectId] as const;

@@ -13,7 +13,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ## Resume here
 
-**Decision (2026-11-27, owner):** the three-PC run of section 13 (Step 5.10, manual part), the `v0.1.0` tag and the real-Host install wait until the project's code is complete. Until then no PC test is needed. **Code done on stacked branches:** Phase B (B1-B5) and Phase C steps C1 (search), C2 (calendar, saved views), C3 (project dashboard) and C5 in part (Markdown, PDF, Word and zip export; PNG of the board not yet). **Next code step: C4 is blocked on the owner's decision (see below); the PNG part of C5 or C6 can go next.** C4 (Host hardening) waits for the owner's decision on encrypted LAN traffic and running as a Windows service. Then C5, C6 and Phase D, as in `docs/MASTER_PLAN.md`. Each step still gets its own branch from `develop`, its checks, and an entry here. Automated E2E (`apps/web/e2e/smoke6-acceptance.spec.ts`) stays green at every step.
+**Decision (2026-11-27, owner):** the three-PC run of section 13 (Step 5.10, manual part), the `v0.1.0` tag and the real-Host install wait until the project's code is complete. Until then no PC test is needed. **Code done on stacked branches:** Phase B (B1-B5) and Phase C steps C1 (search), C2 (calendar, saved views), C3 (project dashboard) and C5 (Markdown, PDF, Word, zip and board PNG export). **Next code step: C4 is blocked on the owner's decision (see below); C6 can go next.** C4 (Host hardening) waits for the owner's decision on encrypted LAN traffic and running as a Windows service. Then C5, C6 and Phase D, as in `docs/MASTER_PLAN.md`. Each step still gets its own branch from `develop`, its checks, and an entry here. Automated E2E (`apps/web/e2e/smoke6-acceptance.spec.ts`) stays green at every step.
 
 **State (2026-11-13, end of day):** Phase A Parts 1, 2 and 3 are **done and merged into `develop`** (PRs #6-#11). Nothing is half-finished. **Tomorrow: start Part 4** - first 4.0 (project edit dialog) and 4.1 (Tasks API). Create the branch from `develop` (for example `feat/phase-a-tasks`). The step-by-step plan, with files, endpoints, tables and tests for every remaining step, is in **`docs/MASTER_PLAN.md`** (section 4).
 
@@ -288,14 +288,17 @@ Steps are proposed here (the master plan lists the items without a breakdown); e
   - [x] Tests: 4 server builder tests (counts, workload, unassigned, turnaround), 2 server route tests (counts, outsiders and signed-out refused), 1 web component test; E2E `smoke12-dashboard`; server 181, web 131, E2E 16/16
   - [ ] Not done: a dashboard across all projects; trends over time; median turnaround (only the average); exporting the numbers (C5)
 - [ ] C4 Host hardening: run as a Windows service, encrypted LAN traffic, in-app updates served by the Host
-- [~] C5 Export (PDF, PNG, Word, Markdown, zip) — 2026-11-27, branch `feat/phase-c5-export` (stacked on C3)
+- [x] C5 Export (PDF, PNG, Word, Markdown, zip) — 2026-11-27, branch `feat/phase-c5-export` (stacked on C3); PNG on `feat/phase-c5-board-png` (stacked on it)
   - [x] `GET /projects/:id/export?format=markdown|pdf`: project header, progress numbers, and tasks grouped by status (done tasks ticked, with priority, due date and assignees); a file download named `<project> - export.<ext>`; visible only to people on the project (404 otherwise), 400 for any other format (`projects/export.ts`, `routes/export.ts`)
   - [x] PDF built with `pdf-lib` (new dependency of the Host): A4 pages, wrapped lines, new page when full; text is limited to ASCII because the standard PDF fonts cannot draw other characters (other characters print as `?`)
   - [x] `GET /projects/:id/export?format=docx`: Word document with the same content (`projects/exportWord.ts`, `docx` package)
   - [x] `GET /projects/:id/export?format=zip`: `project.md` plus every project file in `files/` and every task file in `tasks/<task>/`; duplicate names get a number (`projects/exportFiles.ts`, `fflate` package)
   - [x] Dashboard buttons "Export Markdown", "Export PDF" (`downloadFile` in `lib/api.ts` sends the token and saves the file)
-  - [x] Tests: 1 server route test (formats, outsiders and signed-out refused), 2 server builder tests (multi-page PDF, Markdown content); 1 web test for the download; E2E `smoke13-export` (all four formats); server 184, web 132, E2E 17/17
-  - [ ] Not done: PNG of the board (needs the board rendered from its Yjs data); project brief text (rich text) is not in the export yet; the Word and PDF files have no board or images
+  - [x] Tests: 1 server route test (formats, outsiders and signed-out refused), 2 server builder tests (multi-page PDF, Markdown content); 1 web test for the download; E2E `smoke13-export` (all four formats); the brief test covers TipTap reading and the Markdown and PDF sections; server 186, web 132, E2E 17/17
+  - [x] Project brief (TipTap text) in every format: a "Brief" section with one line per paragraph or list item (`briefLines` in `projects/export.ts`)
+  - [x] PNG of the board: a "Download PNG" button on the board toolbar draws every card and child board from the live document onto a canvas in the browser (no image library on the Host), twice as large for sharpness (capped at 8000 pixels a side), light palette whatever the theme; pictures are fetched and drawn, task cards show their title and status (`lib/boardPicture.ts`, `BoardCanvas.tsx`)
+  - [x] PNG tests: 4 web tests (area and margin, scale cap, text wrapping, every card kind drawn on a recording canvas); E2E `smoke14-board-png` (file name, PNG signature, picture width); web 136, E2E 18/18
+  - [ ] Not done: the Word and PDF files have no board picture or images; the PNG shows one board, not its child boards' contents; a picture that cannot be read is drawn as its name
 - [ ] C6 Full settings, board templates, more card types (table, document, heading, colour, comment), custom task statuses, per-user notification settings and a daily summary, incremental backups, project cover images
 
 ---
