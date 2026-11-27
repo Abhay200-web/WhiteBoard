@@ -18,7 +18,7 @@ function ExportButtons({ projectId }: { projectId: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const save = async (format: 'markdown' | 'pdf') => {
+  const save = async (format: 'markdown' | 'pdf' | 'docx' | 'zip') => {
     setBusy(true);
     setError(null);
     try {
@@ -37,6 +37,12 @@ function ExportButtons({ projectId }: { projectId: string }) {
       </Button>
       <Button variant="secondary" disabled={busy} onClick={() => save('pdf')}>
         Export PDF
+      </Button>
+      <Button variant="secondary" disabled={busy} onClick={() => save('docx')}>
+        Export Word
+      </Button>
+      <Button variant="secondary" disabled={busy} onClick={() => save('zip')}>
+        Export zip with files
       </Button>
       {error && <p className="text-sm text-danger">{error}</p>}
     </div>
