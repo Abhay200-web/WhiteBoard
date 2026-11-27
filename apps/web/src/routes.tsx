@@ -16,6 +16,7 @@ import { ReviewPage } from './pages/review/ReviewPage';
 import { NewProjectPage } from './pages/projects/NewProjectPage';
 import { ProjectPage } from './pages/projects/ProjectPage';
 import { ProjectsPage } from './pages/projects/ProjectsPage';
+import { BoardRoute, ProjectCanvasRoute } from './pages/boards/BoardPage';
 import { HostSection } from './pages/settings/HostSection';
 import { AccountSection, ConnectionSection } from './pages/settings/sections';
 import { SetupPage } from './pages/SetupPage';
@@ -36,6 +37,8 @@ const pages: RouteObject[] = [
           { path: '/projects', element: <ProjectsPage /> },
           { path: '/projects/new', element: <NewProjectPage /> },
           { path: '/projects/:id', element: <ProjectPage /> },
+          { path: '/projects/:id/canvas', element: <ProjectCanvasRoute /> },
+          { path: '/boards/:boardId', element: <BoardRoute /> },
           {
             path: '/my-tasks',
             element: (

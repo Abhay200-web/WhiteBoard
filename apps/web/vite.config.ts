@@ -41,7 +41,7 @@ export default defineConfig({
         {
           target: HOST,
           changeOrigin: true,
-          ws: p === '/events', // the live connection is a WebSocket
+          ws: p === '/events' || p === '/collab', // live connections are WebSockets
 
           bypass: (req: { headers: { accept?: string } }) =>
             req.headers.accept?.includes('text/html') ? '/index.html' : undefined,

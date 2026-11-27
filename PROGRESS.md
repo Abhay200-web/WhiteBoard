@@ -232,7 +232,18 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
   - [ ] Client side: the web board view with live editing, presence cursors (Yjs awareness) and the offline cache (IndexedDB). Comes with B4, when the board has cards to show
   - [ ] Not measured: memory and CPU with many boards and clients; the sidecar smoke test does not yet open `/collab`
   - [ ] Left as is for now: `/collab` traffic is not encrypted (plain WebSocket on the LAN). Encrypted LAN traffic is listed under Phase C (Host hardening)
-- [ ] B4 Cards (note, image, file, link, column, line/arrow; undo / redo; context menus)
+- [~] B4a Board view and cards: note, picture, file, link, live sync in the browser — 2026-11-27, branch `feat/phase-b4a-cards` (stacked on B1 + B2 + B3)
+  - [x] Shared card shapes (`packages/core/src/cards.ts`); cards live in the board's live document, one Yjs map per card, so a move and a text edit at the same time both survive
+  - [x] Link preview: `POST /boards/:id/link-preview` fetches a public page's title and description; refuses this computer, the office network and other non-public addresses (also when a name resolves to them), follows at most 3 redirects, caps time and size (`boards/linkPreview.ts`)
+  - [x] Web board page at `/projects/:id/canvas` (project's main board) and `/boards/:id`: breadcrumbs, Live / Connecting / Offline status, who else is on the board, pan, zoom, select, drag, resize, delete, note editing, child boards open on double-click (`pages/boards/BoardPage.tsx`, `components/board/BoardCanvas.tsx`)
+  - [x] Offline: changes are kept in the browser (IndexedDB) and sent when the Host is back
+  - [x] Tests: 10 server tests (link preview rules, access), 3 web tests (cards in the live document: round trip, a move and a text edit at once, invalid cards skipped), E2E `smoke7-boards` (two browsers see each other's notes live); web 120, server 168, E2E 11/11
+  - [x] Sign-in limit raised for E2E only (`WB_AUTH_RATE_MAX`, default stays 10)
+  - [ ] Not automated: dragging, resizing, picture / file / link cards in a browser (checked by reading the code and the server tests, not clicked through)
+  - [ ] Not done in B4a: column, line / arrow, undo / redo, right-click menus (B4b)
+  - [ ] Note text is plain text, last edit wins when two people edit the same note at the same moment (rich text later)
+- [ ] B4b Columns, lines and arrows, undo / redo, right-click menus
+
 - [ ] B5 Task cards (drag a task onto a board, kept in sync with the kanban)
 
 **Exit:** two people edit one board live over the LAN; a task card moved on the board updates the kanban.

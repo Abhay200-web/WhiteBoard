@@ -18,7 +18,8 @@ export default defineConfig({
     {
       command: 'pnpm --filter @whiteboard/server start',
       url: 'http://127.0.0.1:47800/host/info',
-      env: { WB_HOST: '127.0.0.1', WB_DATA_DIR: dataDir },
+      // The specs sign many people in from one address, more than the default limit allows.
+      env: { WB_HOST: '127.0.0.1', WB_DATA_DIR: dataDir, WB_AUTH_RATE_MAX: '1000' },
       reuseExistingServer: !process.env.CI,
       cwd: '../..',
     },
