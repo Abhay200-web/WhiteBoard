@@ -1,5 +1,17 @@
-import { markReadRequestSchema, notificationInboxSchema } from '@whiteboard/core';
-import { notifications, projectMembers, projects, tasks, users, type Db } from '@whiteboard/db';
+import {
+  markReadRequestSchema,
+  notificationInboxSchema,
+  notificationSettingsSchema,
+} from '@whiteboard/core';
+import {
+  notificationSettings,
+  notifications,
+  projectMembers,
+  projects,
+  tasks,
+  users,
+  type Db,
+} from '@whiteboard/db';
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import type { FastifyPluginAsync } from 'fastify';
 
@@ -64,6 +76,33 @@ export const notificationRoutes: FastifyPluginAsync<{ db: Db }> = async (app, { 
       })),
       unread,
     });
+  });
+
+  /** My notification choices; the defaults when I never saved any. */
+  app.get('/me/notification-settings', { preHandler: signedIn }, async (request) => {
+    const row = db
+      .select({
+        muted: notificationSettings.muted,
+        dailySummary: notificationSettings.dailySummary,
+      })
+      .from(notificationSettings)
+      .where(eq(notificationSettings.userId, request.auth!.user.id))
+      .get();
+    return notificationSettingsSchema.parse(row ?? { muted: [], dailySummary: false });
+  });
+
+  app.put('/me/notification-settings', { preHandler: signedIn }, async (request, reply) => {
+    const parsed = notificationSettingsSchema.safeParse(request.body);
+    if (!parsed.success) return badRequest(reply, parsed.error.issues[0]?.message);
+    const settings = {
+      muted: [...new Set(parsed.data.muted)],
+      dailySummary: parsed.data.dailySummary,
+    };
+    db.insert(notificationSettings)
+      .values({ userId: request.auth!.user.id, ...settings })
+      .onConflictDoUpdate({ target: notificationSettings.userId, set: settings })
+      .run();
+    return settings;
   });
 
   /** Marks the given notifications read, or all of mine. Others' ids are simply not touched. */
