@@ -1,14 +1,35 @@
 import { randomUUID } from 'node:crypto';
 
 import type { NotificationKind } from '@whiteboard/core';
-import { notifications, taskAssignees, tasks, type Db, type DbTx } from '@whiteboard/db';
-import { eq } from 'drizzle-orm';
+import {
+  notificationSettings,
+  notifications,
+  taskAssignees,
+  tasks,
+  type Db,
+  type DbTx,
+} from '@whiteboard/db';
+import { eq, inArray } from 'drizzle-orm';
 
 import type { EventHub } from '../events/hub';
 import { projectViewers } from './access';
 
+/** Of these people, the ones who turned this kind of notification off in their settings. */
+function mutedFor(db: Db | DbTx, userIds: string[], kind: NotificationKind): Set<string> {
+  if (userIds.length === 0) return new Set();
+  return new Set(
+    db
+      .select({ userId: notificationSettings.userId, muted: notificationSettings.muted })
+      .from(notificationSettings)
+      .where(inArray(notificationSettings.userId, userIds))
+      .all()
+      .filter((s) => s.muted.includes(kind))
+      .map((s) => s.userId),
+  );
+}
+
 /**
- * Tells people about something, never the person who did it, and only people who can see the
+ * Tells people about something, never the person who did it, nor anyone who turned that kind off, and only people who can see the
  * project right now (someone taken off a project hears nothing more about it, even about tasks
  * they created). Call it inside the transaction that makes the change. The live ping goes out
  * at once: better-sqlite3 transactions run synchronously, so the rows are committed before any
@@ -28,7 +49,12 @@ export function notify(
   },
 ): void {
   const others = [...n.to].filter((id) => id !== n.actorId);
-  const recipients = projectViewers(tx, n.projectId, others);
+  const muted = mutedFor(tx, others, n.kind);
+  const recipients = projectViewers(
+    tx,
+    n.projectId,
+    others.filter((id) => !muted.has(id)),
+  );
   if (recipients.length === 0) return;
   const createdAt = new Date();
   tx.insert(notifications)

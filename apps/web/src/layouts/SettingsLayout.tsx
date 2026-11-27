@@ -9,6 +9,7 @@ export function SettingsLayout() {
   const isAdmin = user?.role === 'owner' || user?.role === 'admin';
   const sections = [
     { to: 'account', label: 'Account' },
+    { to: 'notifications', label: 'Notifications' },
     { to: 'connection', label: 'Connection' },
     ...(isAdmin ? [{ to: 'host', label: 'Host' }] : []),
   ];

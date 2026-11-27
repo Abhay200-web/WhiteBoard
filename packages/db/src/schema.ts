@@ -453,6 +453,18 @@ export const notifications = sqliteTable(
   (t) => [index('notifications_user_idx').on(t.userId, t.createdAt)],
 );
 
+/** A person's notification choices. No row means the defaults: everything on, no daily summary. */
+export const notificationSettings = sqliteTable('notification_settings', {
+  userId: text('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  /** JSON array of the notification kinds this person turned off. */
+  muted: text('muted', { mode: 'json' }).$type<string[]>().notNull().default([]),
+  dailySummary: integer('daily_summary', { mode: 'boolean' }).notNull().default(false),
+  /** The Host's local date (YYYY-MM-DD) of the last summary run for this person, so it runs once a day. */
+  lastSummaryDay: text('last_summary_day'),
+});
+
 /**
  * Deadline alerts already sent, so each is sent once. Keyed by the due date too: moving a task's
  * due date sends its alerts again.

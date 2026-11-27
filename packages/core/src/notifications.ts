@@ -16,8 +16,36 @@ export const NOTIFICATION_KINDS = [
   /** To project managers: the actor's freelancer access ran out; their task is unassigned. */
   'access_ended',
   ...DEADLINE_ALERT_KINDS,
+  /** Once a day, per project: my overdue and due-today tasks, and reviews waiting for me. */
+  'daily_summary',
 ] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
+
+/** The kinds a person can turn off. The daily summary has its own on/off switch. */
+export const MUTABLE_NOTIFICATION_KINDS = NOTIFICATION_KINDS.filter(
+  (k): k is Exclude<NotificationKind, 'daily_summary'> => k !== 'daily_summary',
+);
+export type MutableNotificationKind = (typeof MUTABLE_NOTIFICATION_KINDS)[number];
+
+/** What each switch on the settings page says. */
+export const NOTIFICATION_KIND_LABEL: Record<MutableNotificationKind, string> = {
+  assigned: 'Someone assigns me a task',
+  mentioned: 'Someone mentions me in a comment',
+  commented: 'Someone comments on my tasks',
+  status: 'My tasks move to another status',
+  added_to_project: 'Someone adds me to a project',
+  access_ended: "A freelancer's access ends (project managers)",
+  due_soon: 'My tasks are due within 24 hours',
+  overdue: 'My tasks are overdue',
+};
+
+/** `GET` and `PUT /me/notification-settings`. By default everything is on and the summary off. */
+export const notificationSettingsSchema = z.object({
+  /** The kinds this person does not want in the bell (or as Windows notifications). */
+  muted: z.array(z.enum(MUTABLE_NOTIFICATION_KINDS)).max(MUTABLE_NOTIFICATION_KINDS.length),
+  dailySummary: z.boolean(),
+});
+export type NotificationSettings = z.infer<typeof notificationSettingsSchema>;
 
 /** One line in the bell. `detail` is the new status name or the start of the comment. */
 export const notificationSchema = z.object({
