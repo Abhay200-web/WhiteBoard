@@ -12,6 +12,14 @@ describe('card shapes', () => {
     ).toBe(true);
   });
 
+  it('accepts a task card, and a column linked to a status or not', () => {
+    expect(cardSchema.safeParse({ ...place, kind: 'task', taskId: 't1' }).success).toBe(true);
+    expect(
+      cardSchema.safeParse({ ...place, kind: 'column', title: 'Doing', statusId: 's2' }).success,
+    ).toBe(true);
+    expect(cardSchema.safeParse({ ...place, kind: 'column', title: 'Plain' }).success).toBe(true);
+  });
+
   it('refuses a line without its direction flags', () => {
     expect(cardSchema.safeParse({ ...place, kind: 'line' }).success).toBe(false);
   });

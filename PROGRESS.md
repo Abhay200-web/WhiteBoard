@@ -251,9 +251,35 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
   - [ ] Not done: moving a column moves the cards on it (needs a grouping rule); lines are not resizable by their ends yet (they follow the box)
   - [ ] Found while testing: development builds run effects twice, so anything that destroys a Yjs object in an effect cleanup must not do it on the first run (the undo manager was switched off this way)
 
-- [ ] B5 Task cards (drag a task onto a board, kept in sync with the kanban)
+- [x] B5 Task cards (drag a task onto a board, kept in sync with the kanban) — 2026-11-27, branch `feat/phase-b5-task-cards` (stacked on B4b)
+  - [x] Task card: a reference to a project task (`taskCardSchema`); its title, status, due date and people are read from the task (`components/board/TaskBody.tsx`), refreshed by the live events
+  - [x] Task picker on the board (Task button): lists the project's tasks, searchable
+  - [x] Column linked to a status: right-click a column → "Link to <status>" / "Unlink status"; the column says where dropped tasks go
+  - [x] Drop rule: a task card dropped on a column linked to a status moves the task there through the normal task update, so the Host's move rules apply and a refused move is shown on the board; the kanban updates through the existing task events
+  - [x] Tests: core shape tests; web test for finding the column under a point; E2E `smoke9-task-cards` (task added, column linked, dragged away then into the column, kanban shows it under "In progress"); web 122, core 9, E2E 13/13
+  - [ ] Not tested: the other direction, a task moved on the kanban updating its card on an open board live. The events path is in place, but the E2E only checks board → kanban. Undo does not undo a status move (it undoes only the board's own changes)
+  - [ ] Not automated: two computers over the LAN (the Phase B exit wording). Covered on one machine with two browsers; the three-PC run is the manual step, deferred until all code is complete (see Resume here)
 
-**Exit:** two people edit one board live over the LAN; a task card moved on the board updates the kanban.
+**Exit:** two people edit one board live over the LAN; a task card moved on the board updates the kanban. Met on one machine with two browsers (E2E); the LAN check is part of the three-PC run.
+
+---
+
+## Phase C — v2
+
+Steps are proposed here (the master plan lists the items without a breakdown); each one is its own branch from the previous one until merged.
+
+- [x] C1 Full search (SQLite FTS5) — 2026-11-27, branch `feat/phase-c1-search` (stacked on B5)
+  - [x] Index: one FTS5 table (`search_index`) kept current by database triggers on projects, tasks, comments and boards; existing rows back-filled (checked on a database with data for all four kinds) (`migrations/0014_search.sql`)
+  - [x] Card text on boards (notes, column titles, link titles, file names) written to the index when the board's document is stored; this closes the item deferred in B3 (`search/cardIndex.ts`)
+  - [x] `GET /search?q=`: prefix matching on every word; results only from projects the person can view (`routes/search.ts`, `visibleProjectIds`)
+  - [x] Web: Search page at `/search` with highlighted matches; each hit opens its board or project
+  - [x] Tests: 5 server search tests (projects, tasks, comments, permissions, rename and delete, board notes); 2 web tests; E2E `smoke10-search`; server 173 tests, web 124, E2E 14/14
+  - [ ] Not searched yet: task descriptions (rich text), files' contents, and the words inside images
+- [ ] C2 Calendar view and saved filters
+- [ ] C3 Dashboard and reporting (progress, overdue, workload, review turnaround)
+- [ ] C4 Host hardening: run as a Windows service, encrypted LAN traffic, in-app updates served by the Host
+- [ ] C5 Export (PDF, PNG, Word, Markdown, zip)
+- [ ] C6 Full settings, board templates, more card types (table, document, heading, colour, comment), custom task statuses, per-user notification settings and a daily summary, incremental backups, project cover images
 
 ---
 

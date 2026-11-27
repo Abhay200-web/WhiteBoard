@@ -10,6 +10,7 @@ import * as Y from 'yjs';
 
 import { resolveSession, type AuthContext } from '../auth/sessions';
 import { findViewableBoard } from '../boards/tree';
+import { indexCards } from '../search/cardIndex';
 
 /** A board's live document is named `board:<board id>`. */
 export const BOARD_DOC_PREFIX = 'board:';
@@ -108,6 +109,7 @@ export function createCollab(db: Db, opts: CollabOptions = {}) {
       const boardId = boardIdOf(documentName);
       if (!boardId) return;
       projectLayout(db, boardId, document);
+      indexCards(db, boardId, document);
       compact(db, boardId, document, compactAfter);
     },
   });

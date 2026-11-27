@@ -17,6 +17,7 @@ import { inviteRoutes } from './routes/invites';
 import { memberRoutes } from './routes/members';
 import { notificationRoutes } from './routes/notifications';
 import { boardRoutes } from './routes/boards';
+import { searchRoutes } from './routes/search';
 import { projectRoutes } from './routes/projects';
 import { setupRoutes, type RateLimitOptions } from './routes/setup';
 import { deliverableRoutes } from './routes/deliverables';
@@ -79,6 +80,7 @@ export function buildApp({
   app.register(notificationRoutes, { db });
   app.register(projectRoutes, { db, hub });
   app.register(boardRoutes, { db });
+  app.register(searchRoutes, { db });
 
   app.register(taskRoutes, { db, hub });
   app.register(deliverableRoutes, { db, hub });

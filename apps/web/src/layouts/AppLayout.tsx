@@ -14,6 +14,7 @@ const NAV = [
   { to: '/', label: 'Home', end: true, who: 'all' },
   { to: '/my-tasks', label: 'My tasks', end: false, who: 'all' },
   { to: '/projects', label: 'Projects', end: false, who: 'all' },
+  { to: '/search', label: 'Search', end: false, who: 'all' },
   { to: '/review-queue', label: 'Review queue', end: false, who: 'staff' },
   { to: '/members', label: 'Members', end: false, who: 'admin' },
   { to: '/settings', label: 'Settings', end: false, who: 'all' },
