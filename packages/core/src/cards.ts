@@ -5,7 +5,7 @@ import { z } from 'zod';
  * Every card has a place and size on its board. Values are checked when read, so a card that does
  * not match its kind is skipped rather than shown broken.
  */
-export const CARD_KINDS = ['note', 'image', 'file', 'link'] as const;
+export const CARD_KINDS = ['note', 'image', 'file', 'link', 'column', 'line'] as const;
 export type CardKind = (typeof CARD_KINDS)[number];
 
 const place = {
@@ -45,11 +45,28 @@ export const linkCardSchema = z.object({
   description: z.string().max(1000),
 });
 
+/** A titled frame that groups the cards placed on it. Cards are not moved with it (yet). */
+export const columnCardSchema = z.object({
+  ...place,
+  kind: z.literal('column'),
+  title: z.string().max(120),
+});
+
+/** A straight line across its box. `reversed` draws it from the bottom-left corner; `arrow` adds a head at the end. */
+export const lineCardSchema = z.object({
+  ...place,
+  kind: z.literal('line'),
+  reversed: z.boolean(),
+  arrow: z.boolean(),
+});
+
 export const cardSchema = z.discriminatedUnion('kind', [
   noteCardSchema,
   imageCardSchema,
   fileCardSchema,
   linkCardSchema,
+  columnCardSchema,
+  lineCardSchema,
 ]);
 export type Card = z.infer<typeof cardSchema>;
 

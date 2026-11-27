@@ -13,6 +13,7 @@ export function CardBody({
 }: {
   card: Card;
   editing: boolean;
+  /** The new text of a note, or the new title of a column. */
   onText: (text: string) => void;
   onDoneEditing: () => void;
 }) {
@@ -20,19 +21,14 @@ export function CardBody({
     case 'note':
       if (editing) {
         return (
-          <textarea
-            autoFocus
-            aria-label="Note text"
-            defaultValue={card.text}
-            onBlur={(e) => {
-              onText(e.currentTarget.value);
+          <TextEditor
+            label="Note text"
+            value={card.text}
+            multiline
+            onCommit={(value) => {
+              onText(value);
               onDoneEditing();
             }}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') e.currentTarget.blur();
-            }}
-            onPointerDown={(e) => e.stopPropagation()}
-            className="h-full w-full resize-none bg-transparent p-2 text-sm outline-none"
           />
         );
       }
@@ -41,6 +37,28 @@ export function CardBody({
           {card.text || <span className="text-muted">Double-click to write</span>}
         </p>
       );
+    case 'column':
+      if (editing) {
+        return (
+          <TextEditor
+            label="Column title"
+            value={card.title}
+            onCommit={(value) => {
+              onText(value);
+              onDoneEditing();
+            }}
+          />
+        );
+      }
+      return (
+        <div className="h-full w-full">
+          <p className="border-b border-line px-3 py-2 text-sm font-semibold">
+            {card.title || 'Untitled column'}
+          </p>
+        </div>
+      );
+    case 'line':
+      return <LineBody card={card} />;
     case 'image':
       return <ImageBody fileId={card.fileId} name={card.name} />;
     case 'file':
@@ -59,6 +77,78 @@ export function CardBody({
         </a>
       );
   }
+}
+
+/** A text box that saves when it loses focus; Escape leaves it. */
+function TextEditor({
+  label,
+  value,
+  multiline = false,
+  onCommit,
+}: {
+  label: string;
+  value: string;
+  multiline?: boolean;
+  onCommit: (value: string) => void;
+}) {
+  const common = {
+    autoFocus: true,
+    'aria-label': label,
+    defaultValue: value,
+    onBlur: (e: { currentTarget: { value: string } }) => onCommit(e.currentTarget.value),
+    onKeyDown: (e: { key: string; currentTarget: HTMLElement }) => {
+      if (e.key === 'Escape') e.currentTarget.blur();
+    },
+    onPointerDown: (e: { stopPropagation: () => void }) => e.stopPropagation(),
+  };
+  return multiline ? (
+    <textarea
+      {...common}
+      className="h-full w-full resize-none bg-transparent p-2 text-sm outline-none"
+    />
+  ) : (
+    <input
+      {...common}
+      className="w-full bg-transparent px-3 py-2 text-sm font-semibold outline-none"
+    />
+  );
+}
+
+/** A straight line across its box; the arrow head sits at the end, which is the bottom-right unless reversed. */
+function LineBody({ card }: { card: Extract<Card, { kind: 'line' }> }) {
+  const marker = `arrow-${card.id}`;
+  const [x1, y1, x2, y2] = card.reversed
+    ? [0, card.height, card.width, 0]
+    : [0, 0, card.width, card.height];
+  return (
+    <svg width="100%" height="100%" aria-hidden="true" className="text-text">
+      {card.arrow && (
+        <defs>
+          <marker
+            id={marker}
+            viewBox="0 0 10 10"
+            refX="9"
+            refY="5"
+            markerWidth="8"
+            markerHeight="8"
+            orient="auto-start-reverse"
+          >
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" />
+          </marker>
+        </defs>
+      )}
+      <line
+        x1={x1}
+        y1={y1}
+        x2={x2}
+        y2={y2}
+        stroke="currentColor"
+        strokeWidth={2}
+        vectorEffect="non-scaling-stroke"
+        markerEnd={card.arrow ? `url(#${marker})` : undefined}
+      />
+    </svg>
+  );
 }
 
 function ImageBody({ fileId, name }: { fileId: string; name: string }) {

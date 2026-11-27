@@ -242,7 +242,14 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
   - [ ] Not automated: dragging, resizing, picture / file / link cards in a browser (checked by reading the code and the server tests, not clicked through)
   - [ ] Not done in B4a: column, line / arrow, undo / redo, right-click menus (B4b)
   - [ ] Note text is plain text, last edit wins when two people edit the same note at the same moment (rich text later)
-- [ ] B4b Columns, lines and arrows, undo / redo, right-click menus
+- [x] B4b Columns, lines and arrows, undo / redo, right-click menus — 2026-11-27, branch `feat/phase-b4b-cards` (stacked on B4a)
+  - [x] Column: a titled frame (title edited in place, double-click or Rename). Cards placed on it do not move with it yet
+  - [x] Line and Arrow: a box with a direction and an optional arrow head; shapes in `packages/core/src/cards.ts`
+  - [x] Undo / redo for this person's own changes (cards and board placements), toolbar buttons and Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z; a drag is one step; other people's changes are not undone (`createUndoManager`)
+  - [x] Right-click menu: Rename, Duplicate, Delete, Open board, Move board to trash (managers only; the Host refuses others), Undo, Redo
+  - [x] Tests: core shape tests; web undo test (own changes only); E2E `smoke8-board-tools` (column title shared live, undo and redo, duplicate from the menu); web 121, core 8, E2E 12/12
+  - [ ] Not done: moving a column moves the cards on it (needs a grouping rule); lines are not resizable by their ends yet (they follow the box)
+  - [ ] Found while testing: development builds run effects twice, so anything that destroys a Yjs object in an effect cleanup must not do it on the first run (the undo manager was switched off this way)
 
 - [ ] B5 Task cards (drag a task onto a board, kept in sync with the kanban)
 
