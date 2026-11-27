@@ -1,5 +1,13 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { taskListSchema, taskSchema, taskStatusListSchema, type Task } from '@whiteboard/core';
+import {
+  savedFilterListSchema,
+  savedFilterSchema,
+  taskListSchema,
+  taskSchema,
+  taskStatusListSchema,
+  type CreateSavedFilterRequest,
+  type Task,
+} from '@whiteboard/core';
 
 import { api } from '../../../lib/api';
 
@@ -75,3 +83,33 @@ export const useTask = (taskId: string) =>
     queryKey: ['task', taskId],
     queryFn: () => api(`/tasks/${taskId}`, { schema: taskSchema }),
   });
+
+/** The current person's saved task views on a project. */
+export const savedFiltersKey = (projectId: string) => ['saved-filters', projectId] as const;
+
+export const useSavedFilters = (projectId: string) =>
+  useQuery({
+    queryKey: savedFiltersKey(projectId),
+    queryFn: () => api(`/projects/${projectId}/saved-filters`, { schema: savedFilterListSchema }),
+  });
+
+export function useCreateSavedFilter(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateSavedFilterRequest) =>
+      api(`/projects/${projectId}/saved-filters`, {
+        method: 'POST',
+        body,
+        schema: savedFilterSchema,
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: savedFiltersKey(projectId) }),
+  });
+}
+
+export function useDeleteSavedFilter(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api(`/saved-filters/${id}`, { method: 'DELETE' }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: savedFiltersKey(projectId) }),
+  });
+}

@@ -14,5 +14,6 @@ export * from './members';
 export * from './notifications';
 export * from './projects';
 export * from './roles';
+export * from './savedFilters';
 export * from './search';
 export * from './tasks';
