@@ -54,5 +54,7 @@ export const serverEventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('notification') }),
   /** Something about this task changed; apps showing it reload it. Ids only, no content. */
   z.object({ type: z.literal('task.changed'), projectId: z.string(), taskId: z.string() }),
+  /** A manager added, renamed, reordered or deleted this project's statuses. */
+  z.object({ type: z.literal('statuses.changed'), projectId: z.string() }),
 ]);
 export type ServerEvent = z.infer<typeof serverEventSchema>;

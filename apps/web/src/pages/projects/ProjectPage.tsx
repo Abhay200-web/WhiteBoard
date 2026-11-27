@@ -17,6 +17,7 @@ import { EditProjectDialog } from './EditProjectDialog';
 import { formatDate, ROLE_LABEL, STATUS_ACTION, STATUS_LABEL } from './format';
 import { ProjectFilesCard } from './ProjectFilesCard';
 import { ProjectMembersCard } from './ProjectMembersCard';
+import { ProjectStatusesCard } from './ProjectStatusesCard';
 import { TaskList } from './tasks/TaskList';
 import { canManageProject, useProject } from './useProject';
 
@@ -160,6 +161,7 @@ export function ProjectPage() {
       <TaskList project={p} canManage={canManage} />
       <ProjectMembersCard project={p} canManage={canManage} />
       <ProjectFilesCard projectId={p.id} canManage={canManage} />
+      {canManage && <ProjectStatusesCard projectId={p.id} />}
     </div>
   );
 }

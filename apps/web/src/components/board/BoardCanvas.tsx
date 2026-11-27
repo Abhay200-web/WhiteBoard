@@ -325,7 +325,10 @@ export function BoardCanvas({
         { x: shape.x + shape.width / 2, y: shape.y + shape.height / 2 },
         id,
       );
-      if (over?.statusId) dropOnStatus(card.taskId, over.statusId);
+      // A column linked to a status that was deleted since then is treated as not linked.
+      if (over?.statusId && statusName.has(over.statusId)) {
+        dropOnStatus(card.taskId, over.statusId);
+      }
     }
     setPreviewBoth(new Map());
   }
