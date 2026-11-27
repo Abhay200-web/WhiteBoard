@@ -6,6 +6,7 @@ export const HOST_PORT = 47800;
 
 export * from './auth';
 export * from './backups';
+export * from './boards';
 export * from './files';
 export * from './host';
 export * from './members';
