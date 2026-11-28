@@ -28,6 +28,7 @@ const PROJECT = {
   deadline: null,
   budget: null,
   color: null,
+  coverFileId: null,
   createdBy: 'u1',
   createdAt: 1,
   memberCount: 1,

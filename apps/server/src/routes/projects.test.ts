@@ -1,5 +1,6 @@
 import { taskStatuses } from '@whiteboard/db';
 import { eq } from 'drizzle-orm';
+import sharp from 'sharp';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
@@ -348,5 +349,66 @@ describe('project files', () => {
     expect(
       (await call('DELETE', `/projects/${project.id}/files/${theirs}`, manager.token)).statusCode,
     ).toBe(404);
+  });
+});
+
+describe('project covers', () => {
+  const png = () =>
+    sharp({ create: { width: 64, height: 32, channels: 3, background: '#3366cc' } })
+      .png()
+      .toBuffer();
+
+  it('sets, shows to members, changes and clears a cover picture', async () => {
+    const manager = await staff();
+    const artist = await staff('guest');
+    const outsider = await staff();
+    const cover = await uploadTestFile(host, manager.token, 'cover.png', await png());
+    const project = await createProject(manager, { name: 'Covered', coverFileId: cover });
+    expect(project).toMatchObject({ coverFileId: cover });
+    await call('POST', `/projects/${project.id}/members`, manager.token, {
+      userId: artist.id,
+      role: 'artist',
+    });
+
+    // Members read the cover without it being one of the project's files.
+    const thumb = (who: Person) => call('GET', `/files/${cover}/thumbnail`, who.token);
+    expect((await thumb(artist)).statusCode).toBe(200);
+    expect((await thumb(outsider)).statusCode).toBe(404);
+    const list = (await call('GET', '/projects', artist.token)).json() as { coverFileId: string }[];
+    expect(list[0]?.coverFileId).toBe(cover);
+
+    const next = await uploadTestFile(host, manager.token, 'next.png', await png());
+    const changed = await call('PATCH', `/projects/${project.id}`, manager.token, {
+      coverFileId: next,
+      color: '#cc3366',
+    });
+    expect(changed.json()).toMatchObject({ coverFileId: next, color: '#cc3366' });
+    expect((await thumb(artist)).statusCode).toBe(404); // the old one is no longer the cover
+
+    const cleared = await call('PATCH', `/projects/${project.id}`, manager.token, {
+      coverFileId: null,
+    });
+    expect(cleared.json()).toMatchObject({ coverFileId: null });
+  });
+
+  it('takes only pictures the manager can read', async () => {
+    const manager = await staff();
+    const stranger = await staff();
+    const project = await createProject(manager);
+    const doc = await uploadTestFile(host, manager.token, 'brief.pdf', pdf);
+    const theirs = await uploadTestFile(host, stranger.token, 'theirs.png', await png());
+    const set = (coverFileId: string) =>
+      call('PATCH', `/projects/${project.id}`, manager.token, { coverFileId });
+
+    const notPicture = await set(doc);
+    expect(notPicture.statusCode).toBe(400);
+    expect(notPicture.json().message).toMatch(/must be a PNG/);
+    expect((await set(theirs)).json().message).toBe('Cover picture not found');
+    expect((await set('nope')).statusCode).toBe(400);
+    const create = await call('POST', '/projects', manager.token, {
+      name: 'x',
+      coverFileId: theirs,
+    });
+    expect(create.statusCode).toBe(400);
   });
 });

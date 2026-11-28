@@ -14,6 +14,7 @@ import { useAuth } from '../../auth/AuthProvider';
 import { FormError } from '../../components/AuthShell';
 import { api, ApiError } from '../../lib/api';
 import { EditProjectDialog } from './EditProjectDialog';
+import { PageCover } from './ProjectCover';
 import { formatDate, ROLE_LABEL, STATUS_ACTION, STATUS_LABEL } from './format';
 import { ProjectFilesCard } from './ProjectFilesCard';
 import { ProjectMembersCard } from './ProjectMembersCard';
@@ -98,7 +99,10 @@ export function ProjectPage() {
             Dashboard
           </Link>
         </div>
-        <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
+        <div className="mt-3">
+          <PageCover project={p} />
+        </div>
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-xl font-semibold">{p.name}</h1>
             {p.clientName && <p className="text-sm text-muted">{p.clientName}</p>}

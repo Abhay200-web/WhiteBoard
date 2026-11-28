@@ -5,6 +5,7 @@ import {
   hostSettings,
   projectFiles,
   projectMembers,
+  projects,
   taskFiles,
   tasks,
   type Db,
@@ -36,8 +37,8 @@ type FileRow = typeof files.$inferSelect;
 
 /**
  * Who may read a file: the uploader, workspace admins, and members of any project the file is
- * attached to, directly (`project_files`) or through one of its tasks (`task_files`). Every file
- * route goes through this one function.
+ * attached to, directly (`project_files`), as its cover, or through one of its tasks
+ * (`task_files`). Every file route goes through this one function.
  */
 export function canAccessFile(db: Db, auth: Actor, file: FileRow): boolean {
   if (file.uploadedBy === auth.user.id || isAdmin(auth)) return true;
@@ -49,6 +50,13 @@ export function canAccessFile(db: Db, auth: Actor, file: FileRow): boolean {
     .where(and(eq(projectFiles.fileId, file.id), isMember))
     .get();
   if (onProject) return true;
+  const isCover = db
+    .select({ id: projects.id })
+    .from(projects)
+    .innerJoin(projectMembers, eq(projectMembers.projectId, projects.id))
+    .where(and(eq(projects.coverFileId, file.id), isMember))
+    .get();
+  if (isCover) return true;
   const onTask = db
     .select({ taskId: taskFiles.taskId })
     .from(taskFiles)

@@ -24,6 +24,7 @@ const project = (myRole: 'manager' | 'artist') => ({
   deadline: null,
   budget: null,
   color: null,
+  coverFileId: null,
   createdBy: 'u2',
   createdAt: 1,
   memberCount: 1,

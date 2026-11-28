@@ -25,6 +25,7 @@ export default defineConfig({
         '/backups',
         '/projects',
         '/boards',
+        '/board-templates',
         '/collab',
         '/search',
         '/saved-filters',

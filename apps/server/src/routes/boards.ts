@@ -17,6 +17,7 @@ import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 
 import { findViewableBoard, type BoardRow } from '../boards/tree';
 import { LinkPreviewError, previewLink } from '../boards/linkPreview';
+import { findTemplateCards, seedBoard } from '../boards/templates';
 import { authenticate, badRequest, requireRole, sendError, ALL_ROLES } from '../plugins/auth';
 import { canManageProject, canViewProject } from '../projects/access';
 
@@ -141,6 +142,9 @@ export const boardRoutes: FastifyPluginAsync<{ db: Db }> = async (app, { db }) =
     const loaded = loadBoard(request, reply);
     if (!loaded) return;
     const parent = loaded.row;
+    const { templateId } = parsed.data;
+    const startCards = templateId ? findTemplateCards(db, request.auth!, templateId) : [];
+    if (!startCards) return sendError(reply, 404, 'not_found', 'Template not found');
 
     const now = new Date();
     const child = {
@@ -167,6 +171,7 @@ export const boardRoutes: FastifyPluginAsync<{ db: Db }> = async (app, { db }) =
         })
         .run();
     });
+    seedBoard(db, child.id, startCards);
     const row = db.select().from(boards).where(eq(boards.id, child.id)).get()!;
     return reply.code(201).send(summary(row));
   });
