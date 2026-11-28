@@ -7,6 +7,7 @@ import { useAuth } from '../../auth/AuthProvider';
 import { FormError } from '../../components/AuthShell';
 import { api } from '../../lib/api';
 import { formatDate, ROLE_LABEL, STATUS_LABEL } from './format';
+import { CardCover } from './ProjectCover';
 
 export function ProjectsPage() {
   const { user } = useAuth();
@@ -45,7 +46,8 @@ export function ProjectsPage() {
             {projects.data.map((p) => (
               <li key={p.id}>
                 <Link to={`/projects/${p.id}`} className="block focus-visible:outline-2">
-                  <Card className="h-full p-4 transition-shadow hover:shadow-md">
+                  <Card className="h-full overflow-hidden p-4 transition-shadow hover:shadow-md">
+                    <CardCover project={p} />
                     <div className="flex items-start justify-between gap-2">
                       <h2 className="font-semibold">{p.name}</h2>
                       <span className="shrink-0 rounded-full bg-surface-2 px-2 py-0.5 text-xs">

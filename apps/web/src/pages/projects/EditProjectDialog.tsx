@@ -5,9 +5,17 @@ import { useState, type FormEvent } from 'react';
 
 import { FormError } from '../../components/AuthShell';
 import { api, ApiError } from '../../lib/api';
-import { ProjectDetailsFields, ProjectTextFields, readProjectForm } from './ProjectForm';
+import {
+  ProjectDetailsFields,
+  ProjectLookFields,
+  ProjectTextFields,
+  readProjectForm,
+} from './ProjectForm';
 
-/** Edit a project's name, client, dates, budget, brief and instructions (managers and admins). */
+/**
+ * Edit a project's name, client, dates, budget, cover, colour, brief and instructions (managers and
+ * admins).
+ */
 export function EditProjectDialog({
   project,
   onClose,
@@ -42,6 +50,7 @@ export function EditProjectDialog({
     <Modal title="Edit project" size="lg" onClose={onClose}>
       <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
         <ProjectDetailsFields project={project} />
+        <ProjectLookFields project={project} />
         <ProjectTextFields project={project} onBrief={setBrief} onInstructions={setInstructions} />
         <FormError
           message={error ?? (save.error instanceof ApiError ? save.error.message : null)}

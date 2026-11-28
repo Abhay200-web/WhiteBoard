@@ -120,6 +120,13 @@
       "when": 1795803408815,
       "tag": "0016_notification_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1795804446509,
+      "tag": "0017_project_covers",
+      "breakpoints": true
     }
   ]
 }

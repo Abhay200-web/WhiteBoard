@@ -66,6 +66,7 @@ export const projectSchema = z.object({
   deadline: z.number().int().nullable(),
   budget: z.number().int().nullable(),
   color: z.string().nullable(),
+  coverFileId: z.string().nullable(),
   createdBy: z.string(),
   createdAt: z.number().int(),
   memberCount: z.number().int(),
@@ -92,6 +93,7 @@ const projectFields = {
   deadline: z.number().int().nullable(),
   budget: z.number().int().nonnegative().nullable(),
   color: z.string().regex(COLOR, 'Use a colour like #3366cc').nullable(),
+  coverFileId: z.string().min(1).nullable(),
 };
 
 export const createProjectRequestSchema = z
@@ -104,6 +106,7 @@ export const createProjectRequestSchema = z
     deadline: projectFields.deadline.optional(),
     budget: projectFields.budget.optional(),
     color: projectFields.color.optional(),
+    coverFileId: projectFields.coverFileId.optional(),
   })
   .refine(
     (v) => v.startDate == null || v.deadline == null || v.deadline >= v.startDate,
@@ -121,6 +124,7 @@ export const updateProjectRequestSchema = z
     deadline: projectFields.deadline,
     budget: projectFields.budget,
     color: projectFields.color,
+    coverFileId: projectFields.coverFileId,
   })
   .partial()
   .refine((v) => Object.keys(v).length > 0, 'Nothing to change');

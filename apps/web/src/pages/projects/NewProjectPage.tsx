@@ -10,7 +10,12 @@ import { FormError } from '../../components/AuthShell';
 import { api, ApiError } from '../../lib/api';
 import { uploadFile } from '../../lib/files';
 import { formatFileSize } from './format';
-import { ProjectDetailsFields, ProjectTextFields, readProjectForm } from './ProjectForm';
+import {
+  ProjectDetailsFields,
+  ProjectLookFields,
+  ProjectTextFields,
+  readProjectForm,
+} from './ProjectForm';
 
 /** Create-project flow: name, client, dates, brief, instructions and reference files. */
 export function NewProjectPage() {
@@ -65,6 +70,10 @@ export function NewProjectPage() {
       <form onSubmit={onSubmit} noValidate className="mt-6 flex flex-col gap-6">
         <Card className="flex flex-col gap-4">
           <ProjectDetailsFields />
+        </Card>
+
+        <Card className="flex flex-col gap-4">
+          <ProjectLookFields />
         </Card>
 
         <Card className="flex flex-col gap-4">

@@ -143,7 +143,15 @@ export function FilePreview({
 }
 
 /** Small thumbnail for lists; falls back to nothing if the file has none. */
-export function FileThumbnail({ fileId, name }: { fileId: string; name: string }) {
+export function FileThumbnail({
+  fileId,
+  name,
+  className = 'size-16 rounded object-cover',
+}: {
+  fileId: string;
+  name: string;
+  className?: string;
+}) {
   const thumb = useQuery({
     queryKey: ['file-thumbnail', fileId],
     queryFn: ({ signal }) => fetchFileBlob(`/files/${fileId}/thumbnail`, signal),
@@ -151,5 +159,5 @@ export function FileThumbnail({ fileId, name }: { fileId: string; name: string }
     gcTime: 60_000,
   });
   const url = useObjectUrl(thumb.data);
-  return url ? <img src={url} alt={name} className="size-16 rounded object-cover" /> : null;
+  return url ? <img src={url} alt={name} className={className} /> : null;
 }

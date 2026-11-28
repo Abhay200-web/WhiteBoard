@@ -31,7 +31,13 @@ import { and, asc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 
 import { authenticate, badRequest, requireRole, sendError, ALL_ROLES } from '../plugins/auth';
-import { canManageProject, canViewProject, isAdmin, projectRole } from '../projects/access';
+import {
+  canManageProject,
+  canViewProject,
+  isAdmin,
+  projectRole,
+  type Actor,
+} from '../projects/access';
 import type { EventHub } from '../events/hub';
 import { notify } from '../projects/notify';
 import { canAccessFile } from './files';
@@ -61,6 +67,7 @@ export const projectRoutes: FastifyPluginAsync<{ db: Db; hub: EventHub }> = asyn
       deadline: row.deadline?.getTime() ?? null,
       budget: row.budget,
       color: row.color,
+      coverFileId: row.coverFileId,
       createdBy: row.createdBy,
       createdAt: row.createdAt.getTime(),
       memberCount: count,
@@ -91,6 +98,14 @@ export const projectRoutes: FastifyPluginAsync<{ db: Db; hub: EventHub }> = asyn
       instructions: row.instructions ?? null,
       members: members(row.id),
     });
+  }
+
+  /** Why a file cannot be a cover, or `null` when it can: a picture the caller can already read. */
+  function coverProblem(fileId: string, auth: Actor) {
+    const file = db.select().from(files).where(eq(files.id, fileId)).get();
+    if (!file || !canAccessFile(db, auth, file)) return 'Cover picture not found';
+    // Only pictures the Host could make a thumbnail of: PNG, JPEG, GIF, WebP and AVIF.
+    return file.thumbnailPath ? null : 'The cover must be a PNG, JPEG, GIF, WebP or AVIF picture';
   }
 
   /** Loads a project the caller may view; replies 404 otherwise (no probing for ids). */
@@ -125,6 +140,8 @@ export const projectRoutes: FastifyPluginAsync<{ db: Db; hub: EventHub }> = asyn
       if (!parsed.success) return badRequest(reply, parsed.error.issues[0]?.message);
       const body = parsed.data;
       const auth = request.auth!;
+      const problem = body.coverFileId ? coverProblem(body.coverFileId, auth) : null;
+      if (problem) return badRequest(reply, problem);
       const id = randomUUID();
       db.transaction((tx) => {
         tx.insert(projects)
@@ -140,6 +157,7 @@ export const projectRoutes: FastifyPluginAsync<{ db: Db; hub: EventHub }> = asyn
             deadline: body.deadline != null ? new Date(body.deadline) : null,
             budget: body.budget ?? null,
             color: body.color ?? null,
+            coverFileId: body.coverFileId ?? null,
             createdBy: auth.user.id,
             createdAt: new Date(),
           })
@@ -196,6 +214,8 @@ export const projectRoutes: FastifyPluginAsync<{ db: Db; hub: EventHub }> = asyn
     if (startDate != null && deadline != null && deadline < startDate) {
       return badRequest(reply, 'The deadline cannot be before the start date');
     }
+    const problem = b.coverFileId ? coverProblem(b.coverFileId, request.auth!) : null;
+    if (problem) return badRequest(reply, problem);
     db.update(projects)
       .set({
         ...(b.name !== undefined && { name: b.name }),
@@ -206,6 +226,7 @@ export const projectRoutes: FastifyPluginAsync<{ db: Db; hub: EventHub }> = asyn
         ...(b.deadline !== undefined && { deadline: b.deadline ? new Date(b.deadline) : null }),
         ...(b.budget !== undefined && { budget: b.budget }),
         ...(b.color !== undefined && { color: b.color }),
+        ...(b.coverFileId !== undefined && { coverFileId: b.coverFileId }),
       })
       .where(eq(projects.id, row.id))
       .run();
