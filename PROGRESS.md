@@ -13,7 +13,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ## Resume here
 
-**Decision (2026-11-27, owner):** the three-PC run of section 13 (Step 5.10, manual part), the `v0.1.0` tag and the real-Host install wait until the project's code is complete. Until then no PC test is needed. **Code done on stacked branches:** Phase B (B1-B5) and Phase C steps C1 (search), C2 (calendar, saved views), C3 (project dashboard), C5 (Markdown, PDF, Word, zip and board PNG export) and C6 in part (custom task statuses, notification settings and the daily summary, project cover images). **Next code step: C4 is blocked on the owner's decision (see below); the rest of C6 goes next, one part per branch.** C4 (Host hardening) waits for the owner's decision on encrypted LAN traffic and running as a Windows service. Then C5, C6 and Phase D, as in `docs/MASTER_PLAN.md`. Each step still gets its own branch from `develop`, its checks, and an entry here. Automated E2E (`apps/web/e2e/smoke6-acceptance.spec.ts`) stays green at every step.
+**Decision (2026-11-27, owner):** the three-PC run of section 13 (Step 5.10, manual part), the `v0.1.0` tag and the real-Host install wait until the project's code is complete. Until then no PC test is needed. **Code done on stacked branches:** Phase B (B1-B5) and Phase C steps C1 (search), C2 (calendar, saved views), C3 (project dashboard), C5 (Markdown, PDF, Word, zip and board PNG export) and C6 in part (custom task statuses, notification settings and the daily summary, project cover images, board templates). **Next code step: C4 is blocked on the owner's decision (see below); the rest of C6 goes next, one part per branch.** C4 (Host hardening) waits for the owner's decision on encrypted LAN traffic and running as a Windows service. Then C5, C6 and Phase D, as in `docs/MASTER_PLAN.md`. Each step still gets its own branch from `develop`, its checks, and an entry here. Automated E2E (`apps/web/e2e/smoke6-acceptance.spec.ts`) stays green at every step.
 
 **State (2026-11-13, end of day):** Phase A Parts 1, 2 and 3 are **done and merged into `develop`** (PRs #6-#11). Nothing is half-finished. **Tomorrow: start Part 4** - first 4.0 (project edit dialog) and 4.1 (Tasks API). Create the branch from `develop` (for example `feat/phase-a-tasks`). The step-by-step plan, with files, endpoints, tables and tests for every remaining step, is in **`docs/MASTER_PLAN.md`** (section 4).
 
@@ -310,7 +310,15 @@ Steps are proposed here (the master plan lists the items without a breakdown); e
     - [x] Tests: 5 server tests (add and rename, reorder and bad lists, delete rules, first To do, access); 2 web tests (manager actions and refusal, hidden from artists); E2E `smoke15-statuses`; server 191, web 138, E2E 19/19
     - [ ] Not done: a colour per status; moving a status's tasks elsewhere as part of deleting it (they must be moved first)
   - [ ] Full settings
-  - [ ] Board templates
+  - [x] Board templates — branch `feat/phase-c6-board-templates` (stacked on `feat/phase-c6-covers`)
+    - [x] Four built-in templates (Task flow, Moodboard, Brief, Retrospective) in `boards/templates.ts`, with fixed `builtin:` ids
+    - [x] Any board saved as a template for the whole studio: `POST /board-templates` (staff), `GET /board-templates` (freelancers see only the built-in ones), `DELETE /board-templates/:id` (whoever saved it, or an admin); new table `board_templates`, migration `0018`
+    - [x] A template keeps notes, columns, lines and links; pictures, files and tasks stay with their project, and a column's status link is dropped (`templateCards` in core, used by both sides)
+    - [x] `POST /boards/:id/boards` takes `templateId`: the Host writes the cards (with new ids) as the new board's first stored update and adds them to search at once; freelancers may use only the built-in templates
+    - [x] Board toolbar: "Board" opens a New board dialog (name, Blank or a template, Delete on my own saved ones); "Save as template" (staff) says how many cards are kept and what stays behind (`TemplateDialogs.tsx`)
+    - [x] `/board-templates` added to the Vite dev proxy
+    - [x] Tests: 3 server tests (built-ins and seeding with fresh ids and search, saving keeps only portable cards, freelancer and delete rules); 3 web tests (new board dialog with template and delete rights, save dialog counts and drops the status link, nothing to keep); E2E `smoke18-board-templates`; server 203, web 146, E2E 22/22
+    - [ ] Not done: starting a new project's main board from a template; applying a template to a board that already exists; renaming a saved template
   - [ ] More card types (table, document, heading, colour, comment)
   - [x] Per-user notification settings and a daily summary — branch `feat/phase-c6-notification-settings` (stacked on `feat/phase-c6-statuses`)
     - [x] `GET` / `PUT /me/notification-settings`: the kinds I turned off and the daily summary switch; no row means everything on and no summary (new table `notification_settings`, migration `0016`)

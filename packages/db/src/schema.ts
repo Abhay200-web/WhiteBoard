@@ -561,6 +561,27 @@ export const boardUpdates = sqliteTable(
   (t) => [index('board_updates_board_idx').on(t.boardId)],
 );
 
+/**
+ * A board template saved by someone in the studio: the cards a new board starts with (JSON of
+ * `templateCardSchema` cards). Built-in templates live in the server code, not here.
+ */
+export const boardTemplates = sqliteTable(
+  'board_templates',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    name: text('name').notNull(),
+    cards: text('cards', { mode: 'json' }).notNull(),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => users.id),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [index('board_templates_workspace_idx').on(t.workspaceId)],
+);
+
 /** A person's saved task filter on a project (their own view; nobody else sees it). */
 export const savedFilters = sqliteTable(
   'saved_filters',
