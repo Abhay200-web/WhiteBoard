@@ -24,6 +24,9 @@ const GUEST: SessionUser = {
 
 const DEADLINE = new Date('2027-03-01T12:00:00').getTime();
 
+// A string body, not a Blob: msw cannot send jsdom's Blob as a response on Node 22.
+const IMAGE = { 'content-type': 'image/png' };
+
 const summary = (over: Record<string, unknown> = {}) => ({
   id: 'p1',
   name: 'Logo for Client X',
@@ -463,7 +466,7 @@ describe('project covers', () => {
     let created: Record<string, unknown> | null = null;
     const uploads = [fileInfo('doc', false), fileInfo('cover', true)];
     server.use(
-      http.get('*/files/cover/thumbnail', () => new HttpResponse(new Blob(['x']))),
+      http.get('*/files/cover/thumbnail', () => new HttpResponse('x', { headers: IMAGE })),
       http.post('*/files', () => HttpResponse.json(uploads.shift(), { status: 201 })),
       http.post('*/projects', async ({ request }) => {
         created = (await request.json()) as Record<string, unknown>;
@@ -495,7 +498,7 @@ describe('project covers', () => {
   it('shows the cover on the project card', async () => {
     mockHost({}, MEMBER);
     server.use(
-      http.get('*/files/f9/thumbnail', () => new HttpResponse(new Blob(['x']))),
+      http.get('*/files/f9/thumbnail', () => new HttpResponse('x', { headers: IMAGE })),
       http.get('*/projects', () =>
         HttpResponse.json([
           summary({ coverFileId: 'f9' }),
@@ -516,7 +519,7 @@ describe('project covers', () => {
     let current = detail({ coverFileId: 'f9', color: '#8b5cc7' });
     let sent: Record<string, unknown> | null = null;
     server.use(
-      http.get('*/files/f9/thumbnail', () => new HttpResponse(new Blob(['x']))),
+      http.get('*/files/f9/thumbnail', () => new HttpResponse('x', { headers: IMAGE })),
       http.post('*/files/f9/link', () =>
         HttpResponse.json({ url: '/files/f9/content?link=abc', expiresAt: Date.now() + 60_000 }),
       ),
